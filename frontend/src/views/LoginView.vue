@@ -31,7 +31,6 @@
           type="text"
           autocomplete="username"
           required
-          placeholder="t.sidorin"
           :disabled="loading"
         />
       </label>

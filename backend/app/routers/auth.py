@@ -32,6 +32,7 @@ def _bind_check(username: str, password: str) -> None:
 
 @router.post("/login", response_model=TokenResponse)
 async def login(req: LoginRequest):
+    req.username  = req.username + "@RVK.local"
     try:
         await asyncio.to_thread(_bind_check, req.username, req.password)
     except LDAPBindError:
@@ -49,6 +50,7 @@ async def login(req: LoginRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка LDAP: {e}",
         )
+    
 
     is_admin = req.username.strip().lower() in settings.admin_logins
     token = create_token(req.username, is_admin)
