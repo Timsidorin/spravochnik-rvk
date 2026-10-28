@@ -2,23 +2,10 @@
   <aside class="sidebar">
     <div class="brand">
       <div class="brand-icon">
-        <svg viewBox="0 0 40 40" width="28" height="28">
-          <defs>
-            <linearGradient id="brand-g" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stop-color="#00d4ff"/>
-              <stop offset="1" stop-color="#0088cc"/>
-            </linearGradient>
-          </defs>
-          <rect width="40" height="40" rx="12" fill="url(#brand-g)"/>
-          <path
-            d="M12 20 L18 26 L28 14"
-            stroke="white"
-            stroke-width="3"
-            fill="none"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
+        <div class="brand-icon">
+  <img src="../assets/logo.jpg" width="28" height="28" alt="" 
+     style="display:block; aspect-ratio:1;">
+</div>
       </div>
       <div>
         <div class="brand-title">РВК Справочник</div>
