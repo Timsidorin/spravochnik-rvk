@@ -53,6 +53,7 @@ AD_OUS = {IT: "ИТ", DEV: "Разработка"}
 
 @pytest.fixture
 def client(monkeypatch):
+    auth_router.login_limiter.clear()
     monkeypatch.setattr(auth_router, "_bind_check", lambda upn, pw: None)
     monkeypatch.setattr(
         ad_import,

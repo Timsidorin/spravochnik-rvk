@@ -1,9 +1,10 @@
+import jwt
 import pytest
 from ldap3.core.exceptions import LDAPBindError, LDAPSocketOpenError
 from pydantic import ValidationError
 
 from app import ad_import
-from app.config import DEFAULT_AD_USER_FILTER, Settings
+from app.config import DEFAULT_AD_USER_FILTER, Settings, settings
 from app.routers import auth as auth_router
 
 from .conftest import AD_OUS, AD_USERS, DEV, login, user
@@ -114,3 +115,68 @@ def test_insecure_jwt_secret_rejected(secret):
 def test_sync_sqlite_url_is_converted():
     s = Settings(_env_file=None, database_url="sqlite:///./x.db")
     assert s.database_url == "sqlite+aiosqlite:///./x.db"
+
+
+def test_login_rate_limited_after_failures(client, monkeypatch):
+    def bad(upn, pw):
+        raise LDAPBindError("invalidCredentials")
+
+    monkeypatch.setattr(auth_router, "_bind_check", bad)
+    for _ in range(5):
+        r = client.post("/api/auth/login", json={"username": "ivanov", "password": "y"})
+        assert r.status_code == 401
+
+    calls = []
+    monkeypatch.setattr(auth_router, "_bind_check", lambda upn, pw: calls.append(upn))
+    r = client.post("/api/auth/login", json={"username": "ivanov", "password": "right"})
+    assert r.status_code == 429
+    assert int(r.headers["Retry-After"]) > 0
+    assert calls == []  # в AD не ходим, чтобы не блокировать учётку
+
+    assert client.post(
+        "/api/auth/login", json={"username": "sidorov", "password": "pw"}
+    ).status_code == 200
+
+
+@pytest.mark.parametrize("username", ["cn=admin,dc=rvk", "a\x00b", "x" * 65, "a;b"])
+def test_login_rejects_invalid_usernames(client, monkeypatch, username):
+    calls = []
+    monkeypatch.setattr(auth_router, "_bind_check", lambda upn, pw: calls.append(upn))
+    r = client.post("/api/auth/login", json={"username": username, "password": "pw"})
+    assert r.status_code == 401
+    assert calls == []
+
+
+def test_admin_rights_revoked_without_new_login(client, monkeypatch):
+    login(client, "admin")
+    assert client.get("/api/admin/status").status_code == 200
+
+    monkeypatch.setattr(settings, "admin_users", "someone_else")
+    assert client.get("/api/admin/status").status_code == 403
+
+
+def test_forged_unsigned_token_rejected(client):
+    token = jwt.encode({"sub": "admin", "is_admin": True, "exp": 9999999999}, None, algorithm="none")
+    r = client.get("/api/admin/status", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 401
+
+
+@pytest.mark.parametrize("alg", ["none", "RS256"])
+def test_unsafe_jwt_algorithm_rejected(alg):
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, jwt_secret="x" * 40, jwt_algorithm=alg)
+
+
+def test_security_headers_and_no_dn_leak(admin_client):
+    tree = admin_client.get("/api/departments/tree")
+    assert tree.headers["X-Content-Type-Options"] == "nosniff"
+    assert tree.headers["Cache-Control"] == "no-store"
+
+    dept_id = tree.json()[0]["id"]
+    detail = admin_client.get(f"/api/departments/{dept_id}").json()
+    assert "dn" not in detail
+
+
+def test_search_query_length_limited(admin_client):
+    r = admin_client.get("/api/departments/search", params={"q": "a" * 101})
+    assert r.status_code == 422

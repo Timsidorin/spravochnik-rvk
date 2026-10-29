@@ -78,8 +78,16 @@ def get_current_user(
     return _decode(token)
 
 
+def is_admin_login(login: str) -> bool:
+    admins = settings.admin_logins
+    login = login.lower()
+    return login in admins or f"{login}@{settings.ad_domain.lower()}" in admins
+
+
 def require_admin(user: dict = Depends(get_current_user)) -> dict:
-    if not user.get("is_admin"):
+    # Права перепроверяются по текущему ADMIN_USERS: исключение из списка
+    # действует сразу, а не после истечения ранее выданного токена.
+    if not user.get("is_admin") or not is_admin_login(str(user.get("sub", ""))):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Требуются права администратора",

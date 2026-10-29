@@ -8,6 +8,7 @@ DEFAULT_AD_USER_FILTER = (
 )
 
 INSECURE_JWT_SECRETS = {"", "change-me", "secret", "changeme"}
+ALLOWED_JWT_ALGORITHMS = {"HS256", "HS384", "HS512"}
 
 
 class Settings(BaseSettings):
@@ -31,6 +32,9 @@ class Settings(BaseSettings):
     auth_cookie_name: str = "phonebook_token"
     auth_cookie_secure: bool = False
 
+    login_max_attempts: int = 5
+    login_window_seconds: int = 300
+
     admin_users: str = ""
 
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
@@ -49,6 +53,15 @@ class Settings(BaseSettings):
         if v.strip().lower() in INSECURE_JWT_SECRETS or len(v) < 32:
             raise ValueError(
                 "JWT_SECRET должен быть случайной строкой длиной не менее 32 символов"
+            )
+        return v
+
+    @field_validator("jwt_algorithm")
+    @classmethod
+    def _check_jwt_algorithm(cls, v: str) -> str:
+        if v not in ALLOWED_JWT_ALGORITHMS:
+            raise ValueError(
+                f"JWT_ALGORITHM должен быть одним из: {', '.join(sorted(ALLOWED_JWT_ALGORITHMS))}"
             )
         return v
 

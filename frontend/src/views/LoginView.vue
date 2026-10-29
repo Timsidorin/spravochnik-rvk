@@ -69,7 +69,12 @@ async function onSubmit() {
     })
     toast.success(`Добро пожаловать, ${data.username}`)
 
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
+    const target = route.query.redirect
+    // Только внутренние пути: защита от open redirect вида ?redirect=//evil.example
+    const redirect =
+      typeof target === 'string' && target.startsWith('/') && !target.startsWith('//') && !target.includes('\\')
+        ? target
+        : '/'
     router.replace(redirect)
   } catch (e) {
     error.value = e.message || 'Не удалось войти'

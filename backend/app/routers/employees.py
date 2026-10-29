@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/employees", tags=["employees"])
 
 @router.get("/{login}", response_model=EmployeeShort)
 async def get_employee(
-    login: str,
+    login: str = Path(max_length=256),
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
@@ -26,7 +26,7 @@ async def get_employee(
 
 @router.get("/{login}/department", response_model=EmployeeDepartmentInfo)
 async def get_employee_department(
-    login: str,
+    login: str = Path(max_length=256),
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):

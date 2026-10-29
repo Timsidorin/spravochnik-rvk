@@ -51,7 +51,6 @@ DepartmentNode.model_rebuild()
 class DepartmentDetail(BaseModel):
     id: int
     name: str
-    dn: str
     parent_id: Optional[int] = None
     head_login: Optional[str] = None
     head: Optional[EmployeeShort] = None

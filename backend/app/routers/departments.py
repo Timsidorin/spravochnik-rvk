@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -48,7 +48,7 @@ async def get_tree(
 
 @router.get("/search", response_model=SearchResult)
 async def search(
-    q: str,
+    q: str = Query(max_length=100),
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
@@ -130,7 +130,6 @@ async def get_department(
     return DepartmentDetail(
         id=dept.id,
         name=dept.name,
-        dn=dept.dn,
         parent_id=dept.parent_id,
         head_login=dept.head_login,
         head=EmployeeShort.model_validate(head) if head else None,
