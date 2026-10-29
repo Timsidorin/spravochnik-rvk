@@ -109,7 +109,10 @@ async function runImport() {
   }
 }
 
-function onLogout() {
+async function onLogout() {
+  try {
+    await apiPost('/api/auth/logout', null, { skipAuth: true })
+  } catch {}
   auth.logout()
   router.push({ name: 'login' })
 }

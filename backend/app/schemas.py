@@ -1,19 +1,21 @@
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ---------- Auth ----------
 class LoginRequest(BaseModel):
-    username: str
-    password: str
+    username: str = Field(min_length=1, max_length=256)
+    password: str = Field(min_length=1, max_length=1024)
 
 
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
+class UserInfo(BaseModel):
     username: str
     is_admin: bool
+
+
+class TokenResponse(UserInfo):
+    pass
 
 
 # ---------- Employee ----------

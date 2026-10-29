@@ -1,9 +1,9 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import jwt
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends, HTTPException, Request, Response, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from .config import settings
 
@@ -11,18 +11,46 @@ security = HTTPBearer(auto_error=False)
 
 
 def create_token(username: str, is_admin: bool) -> str:
+    now = datetime.now(timezone.utc)
     payload = {
         "sub": username,
         "is_admin": is_admin,
-        "iat": datetime.utcnow(),
-        "exp": datetime.utcnow() + timedelta(minutes=settings.jwt_expire_minutes),
+        "iat": now,
+        "exp": now + timedelta(minutes=settings.jwt_expire_minutes),
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
+def set_auth_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        key=settings.auth_cookie_name,
+        value=token,
+        max_age=settings.jwt_expire_minutes * 60,
+        httponly=True,
+        secure=settings.auth_cookie_secure,
+        samesite="strict",
+        path="/api",
+    )
+
+
+def clear_auth_cookie(response: Response) -> None:
+    response.delete_cookie(
+        key=settings.auth_cookie_name,
+        httponly=True,
+        secure=settings.auth_cookie_secure,
+        samesite="strict",
+        path="/api",
+    )
+
+
 def _decode(token: str) -> dict:
     try:
-        return jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        return jwt.decode(
+            token,
+            settings.jwt_secret,
+            algorithms=[settings.jwt_algorithm],
+            options={"require": ["exp", "sub"]},
+        )
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -36,14 +64,18 @@ def _decode(token: str) -> dict:
 
 
 def get_current_user(
+    request: Request,
     creds: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> dict:
-    if not creds:
+    token = request.cookies.get(settings.auth_cookie_name) or (
+        creds.credentials if creds else None
+    )
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Требуется авторизация",
         )
-    return _decode(creds.credentials)
+    return _decode(token)
 
 
 def require_admin(user: dict = Depends(get_current_user)) -> dict:

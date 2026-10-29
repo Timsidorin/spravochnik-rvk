@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,6 +9,8 @@ from ..models import Department, Employee
 from ..ad_import import import_from_ad
 from ..auth import require_admin
 from ..schemas import ImportResult, StatusResult
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -18,9 +22,12 @@ async def trigger_import(
 ):
     try:
         result = await import_from_ad(db)
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Ошибка импорта: {e}")
+    except Exception:
+        log.exception("Ошибка импорта из AD")
+        raise HTTPException(
+            status_code=500,
+            detail="Ошибка импорта из AD, подробности в логе сервера. Данные не изменены.",
+        )
 
     return ImportResult(**result)
 

@@ -2,12 +2,13 @@ import asyncio
 import logging
 from collections import Counter
 
-from ldap3 import Server, Connection, ALL, SUBTREE
+from ldap3 import Connection, SUBTREE
 from ldap3.core.exceptions import LDAPException
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import settings
+from .ldap_client import open_connection
 from .models import Department, Employee
 
 log = logging.getLogger(__name__)
@@ -116,17 +117,10 @@ def _extract_ou_chain(dn: str) -> list[tuple[str, str]]:
 # ============================================================
 
 def _fetch_from_ad_sync() -> tuple[list[dict], dict[str, str]]:
-    server = Server(settings.ad_server, get_info=ALL)
-
     try:
-        conn = Connection(
-            server,
-            user=settings.ad_user,
-            password=settings.ad_password,
-            auto_bind=True,
-        )
+        conn = open_connection(settings.ad_user, settings.ad_password)
     except LDAPException as e:
-        raise RuntimeError(f"Не удалось подключиться к AD: {e}")
+        raise RuntimeError(f"Не удалось подключиться к AD: {e}") from e
 
     try:
         users_raw = _fetch_users(conn)
@@ -148,7 +142,7 @@ def _fetch_users(conn: Connection) -> list[dict]:
     users: list[dict] = []
     for entry in conn.extend.standard.paged_search(
         search_base=settings.ad_search_base,
-        search_filter="(&(objectClass=user)(!(sAMAccountName=*$)))",
+        search_filter=settings.ad_user_filter,
         search_scope=SUBTREE,
         attributes=[
             "sAMAccountName", "cn", "displayName", "mail", "title",
@@ -166,7 +160,7 @@ def _fetch_users(conn: Connection) -> list[dict]:
 
 def _fetch_ou_map(conn: Connection) -> dict[str, str]:
     ou_map: dict[str, str] = {}
-    base = _get_departments_base()  # ← fallback, не пустая строка
+    base = _get_departments_base()
 
     for entry in conn.extend.standard.paged_search(
         search_base=base,
@@ -197,12 +191,10 @@ def _merge_user_ous_into_map(users_raw: list[dict], ou_map: dict[str, str]) -> N
 
 
 # ============================================================
-# Построение отделов и сотрудников
+# Построение отделов и сотрудников (в памяти, без обращений к БД)
 # ============================================================
 
-async def _build_departments(
-    db: AsyncSession, ou_map: dict[str, str]
-) -> dict[str, Department]:
+def _build_departments(ou_map: dict[str, str]) -> dict[str, Department]:
     dept_by_dn: dict[str, Department] = {}
     base_key = _dn_key(_get_departments_base())
 
@@ -218,39 +210,31 @@ async def _build_departments(
             if _dn_key(candidate_dn) == base_key:
                 break
 
-        dept = Department(name=ou_map[dn], dn=dn)
-        if parent_dept is not None:
-            dept.parent_id = parent_dept.id
+        dept_by_dn[dn] = Department(name=ou_map[dn], dn=dn, parent=parent_dept)
 
-        db.add(dept)
-        await db.flush()
-        dept_by_dn[dn] = dept
-
-    await db.commit()
     return dept_by_dn
 
 
-def _resolve_department_id(
+def _resolve_department(
     dn: str, dept_by_dn: dict[str, Department]
-) -> int | None:
+) -> Department | None:
     for ou_dn, _ in reversed(_extract_ou_chain(dn)):
         dept = dept_by_dn.get(ou_dn)
         if dept is not None:
-            return dept.id
+            return dept
     return None
 
 
-async def _build_employees(
-    db: AsyncSession,
+def _build_employees(
     users_raw: list[dict],
     dept_by_dn: dict[str, Department],
-) -> tuple[dict[str, Employee], dict[str, Employee]]:
+) -> dict[str, Employee]:
     emp_by_login: dict[str, Employee] = {}
     emp_by_dn: dict[str, Employee] = {}
 
     for attrs in users_raw:
         login = _first(attrs.get("sAMAccountName"))
-        if not login:
+        if not login or login in emp_by_login:
             continue
         dn = _first(attrs.get("distinguishedName"))
 
@@ -260,7 +244,7 @@ async def _build_employees(
             display_name=_first(attrs.get("displayName")),
             email=_first(attrs.get("mail")),
             title=_first(attrs.get("title")),
-            department_id=_resolve_department_id(dn, dept_by_dn),
+            department=_resolve_department(dn, dept_by_dn),
             manager_dn=_first(attrs.get("manager")),
             phone=_first(attrs.get("telephoneNumber")),
             mobile=_first(attrs.get("mobile")),
@@ -269,56 +253,39 @@ async def _build_employees(
             sip_line=_first(attrs.get("msRTCSIP-Line")),
             office=_first(attrs.get("physicalDeliveryOfficeName")),
             city=_first(attrs.get("l")),
-            dn=dn,
+            dn=dn or None,
         )
-        db.add(emp)
-        await db.flush()
         emp_by_login[login] = emp
         if dn:
             emp_by_dn[dn] = emp
 
-    await db.commit()
-    return emp_by_login, emp_by_dn
-
-
-async def _resolve_managers(
-    db: AsyncSession,
-    emp_by_login: dict[str, Employee],
-    emp_by_dn: dict[str, Employee],
-) -> None:
     for emp in emp_by_login.values():
-        if emp.manager_dn and emp.manager_dn in emp_by_dn:
-            emp.manager_login = emp_by_dn[emp.manager_dn].login
-    await db.commit()
+        manager = emp_by_dn.get(emp.manager_dn) if emp.manager_dn else None
+        if manager is not None:
+            emp.manager_login = manager.login
+
+    return emp_by_login
 
 
-async def _assign_department_heads(
-    db: AsyncSession,
-    dept_by_dn: dict[str, Department],
-    emp_by_login: dict[str, Employee],
-) -> None:
+def _assign_department_heads(emp_by_login: dict[str, Employee]) -> None:
     managers_per_dept: dict[int, Counter] = {}
     direct_count: dict[int, int] = {}
+    dept_by_key: dict[int, Department] = {}
 
     for emp in emp_by_login.values():
-        if not emp.department_id:
+        dept = emp.department
+        if dept is None:
             continue
-        direct_count[emp.department_id] = direct_count.get(emp.department_id, 0) + 1
+        key = id(dept)
+        dept_by_key[key] = dept
+        direct_count[key] = direct_count.get(key, 0) + 1
         if emp.manager_login:
-            managers_per_dept.setdefault(emp.department_id, Counter())[
-                emp.manager_login
-            ] += 1
+            managers_per_dept.setdefault(key, Counter())[emp.manager_login] += 1
 
-    for dept in dept_by_dn.values():
-        counter = managers_per_dept.get(dept.id)
-        if not counter:
-            continue
+    for key, counter in managers_per_dept.items():
         top_login, ref_count = counter.most_common(1)[0]
-        total = direct_count.get(dept.id, 0)
-        if ref_count >= 2 or ref_count == total:
-            dept.head_login = top_login
-
-    await db.commit()
+        if ref_count >= 2 or ref_count == direct_count.get(key, 0):
+            dept_by_key[key].head_login = top_login
 
 
 # ============================================================
@@ -328,14 +295,21 @@ async def _assign_department_heads(
 async def import_from_ad(db: AsyncSession) -> dict:
     users_raw, ou_map = await asyncio.to_thread(_fetch_from_ad_sync)
 
-    await db.execute(delete(Employee))
-    await db.execute(delete(Department))
-    await db.commit()
+    dept_by_dn = _build_departments(ou_map)
+    emp_by_login = _build_employees(users_raw, dept_by_dn)
+    _assign_department_heads(emp_by_login)
 
-    dept_by_dn = await _build_departments(db, ou_map)
-    emp_by_login, emp_by_dn = await _build_employees(db, users_raw, dept_by_dn)
-    await _resolve_managers(db, emp_by_login, emp_by_dn)
-    await _assign_department_heads(db, dept_by_dn, emp_by_login)
+    # Всё в одной транзакции: при ошибке остаются прежние данные,
+    # а читатели видят старый справочник до момента commit.
+    try:
+        await db.execute(delete(Employee))
+        await db.execute(delete(Department))
+        db.add_all(dept_by_dn.values())
+        db.add_all(emp_by_login.values())
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
 
     return {
         "departments": len(dept_by_dn),

@@ -63,7 +63,7 @@ async function onSubmit() {
       { username: username.value.trim(), password: password.value },
       { skipAuth: true }
     )
-    auth.setSession(data.access_token, {
+    auth.setSession({
       username: data.username,
       is_admin: data.is_admin,
     })
