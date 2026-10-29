@@ -1,4 +1,5 @@
 import { useAuthStore } from './stores/auth'
+import router from './router'
 
 const API_BASE = '' // пусто — Vite проксирует /api на бэкенд
 
@@ -14,6 +15,10 @@ export async function api(path, opts = {}) {
 
   if (res.status === 401 && !opts.skipAuth) {
     auth.logout()
+    const current = router.currentRoute.value
+    if (current.name !== 'login') {
+      router.replace({ name: 'login', query: { redirect: current.fullPath } })
+    }
     const err = new Error('Сессия истекла, войдите заново')
     err.status = 401
     throw err

@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,20 +10,27 @@ from ..ad_import import import_from_ad
 from ..auth import require_admin
 from ..schemas import ImportResult, StatusResult
 
+log = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
 @router.post("/import", response_model=ImportResult)
 async def trigger_import(
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(require_admin),
+    user: dict = Depends(require_admin),
 ):
     try:
         result = await import_from_ad(db)
-    except Exception as e:
+    except Exception:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Ошибка импорта: {e}")
+        log.exception("Ошибка импорта из AD (запустил %s)", user.get("sub"))
+        raise HTTPException(
+            status_code=500,
+            detail="Ошибка импорта из AD, подробности в журнале сервера",
+        )
 
+    log.info("Импорт из AD выполнен (%s): %s", user.get("sub"), result)
     return ImportResult(**result)
 
 

@@ -1,4 +1,15 @@
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def normalize_login(value: str) -> str:
+    """'DOMAIN\\user', 'user@domain' -> 'user' (в нижнем регистре)."""
+    value = value.strip()
+    if "\\" in value:
+        value = value.rsplit("\\", 1)[1]
+    if "@" in value:
+        value = value.split("@", 1)[0]
+    return value.strip().lower()
 
 
 class Settings(BaseSettings):
@@ -7,11 +18,27 @@ class Settings(BaseSettings):
     ad_password: str
     ad_search_base: str
     ad_departments_base: str = ""
-    jwt_secret: str = "change-me"
+    ad_domain: str = "RVK.local"
+    ad_connect_timeout: int = 5
+    # Шифрование LDAP: ldaps:// в AD_SERVER или StartTLS поверх ldap://
+    ad_use_starttls: bool = False
+    # PEM с корневым сертификатом CA домена; пусто — системное хранилище
+    ad_ca_cert_file: str = ""
+    # Явное разрешение работать по открытому ldap:// (пароли в открытом виде!)
+    ad_allow_insecure: bool = False
+
+    jwt_secret: str = Field(min_length=32)
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 480
 
     admin_users: str = ""
+
+    # Ограничение попыток входа
+    login_max_failures_per_user: int = 5
+    login_max_attempts_per_ip: int = 20
+    login_window_seconds: int = 300
+
+    enable_docs: bool = False
 
     database_url: str = "sqlite+aiosqlite:///./phonebook.db"
 
@@ -22,8 +49,22 @@ class Settings(BaseSettings):
     )
 
     @property
+    def ad_uses_ldaps(self) -> bool:
+        return self.ad_server.strip().lower().startswith("ldaps://")
+
+    @model_validator(mode="after")
+    def _check_ldap_encryption(self):
+        if not (self.ad_uses_ldaps or self.ad_use_starttls or self.ad_allow_insecure):
+            raise ValueError(
+                "Подключение к AD не зашифровано: пароли будут передаваться "
+                "открытым текстом. Укажите AD_SERVER=ldaps://... или "
+                "AD_USE_STARTTLS=true (либо временно AD_ALLOW_INSECURE=true)."
+            )
+        return self
+
+    @property
     def admin_logins(self) -> set[str]:
-        return {u.strip().lower() for u in self.admin_users.split(",") if u.strip()}
+        return {normalize_login(u) for u in self.admin_users.split(",") if u.strip()}
 
 
 settings = Settings()

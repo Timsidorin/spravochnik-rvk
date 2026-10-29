@@ -40,8 +40,8 @@
       <span class="tree-label" :title="node.name">{{ node.name }}</span>
 
       <!-- Count badge -->
-      <span v-if="node.employeeCount" class="tree-count">
-        {{ node.employeeCount }}
+      <span v-if="node.employees_count" class="tree-count">
+        {{ node.employees_count }}
       </span>
     </div>
 

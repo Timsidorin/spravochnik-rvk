@@ -1,12 +1,14 @@
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ---------- Auth ----------
 class LoginRequest(BaseModel):
-    username: str
-    password: str
+    username: str = Field(min_length=1, max_length=256)
+    # Пустой пароль в LDAP означает анонимный (unauthenticated) bind,
+    # который AD может принять — поэтому запрещаем его явно.
+    password: str = Field(min_length=1, max_length=256)
 
 
 class TokenResponse(BaseModel):
@@ -49,7 +51,6 @@ DepartmentNode.model_rebuild()
 class DepartmentDetail(BaseModel):
     id: int
     name: str
-    dn: str
     parent_id: Optional[int] = None
     head_login: Optional[str] = None
     head: Optional[EmployeeShort] = None

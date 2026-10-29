@@ -2,10 +2,8 @@
   <aside class="sidebar">
     <div class="brand">
       <div class="brand-icon">
-        <div class="brand-icon">
-  <img src="../assets/logo.jpg" width="28" height="28" alt="" 
-     style="display:block; aspect-ratio:1;">
-</div>
+        <img src="../assets/logo.jpg" width="28" height="28" alt=""
+             style="display:block; aspect-ratio:1;">
       </div>
       <div>
         <div class="brand-title">РВК Справочник</div>
@@ -59,19 +57,29 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { apiPost } from '../api'
 import { useToast } from '../composables/useToast'
 import DepartmentTree from './DepartmentTree.vue'
 
 const auth = useAuthStore()
+const route = useRoute()
 const router = useRouter()
 const toast = useToast()
 
 const query = ref('')
 const importing = ref(false)
+
+// Синхронизация поля поиска с URL (перезагрузка страницы, навигация назад)
+watch(
+  () => (route.name === 'search' ? String(route.query.q || '') : null),
+  (q) => {
+    if (q !== null && q.trim() !== query.value.trim()) query.value = q
+  },
+  { immediate: true }
+)
 
 const userInitials = computed(() => {
   const n = auth.user?.username || '?'

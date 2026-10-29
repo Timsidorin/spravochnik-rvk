@@ -12,6 +12,7 @@
           type="text"
           autocomplete="username"
           required
+          placeholder="Логин AD, например ivanov"
           :disabled="loading"
         />
       </label>
@@ -23,7 +24,6 @@
           type="password"
           autocomplete="current-password"
           required
-          placeholder="Домен AD"
           :disabled="loading"
         />
       </label>
@@ -69,7 +69,9 @@ async function onSubmit() {
     })
     toast.success(`Добро пожаловать, ${data.username}`)
 
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
+    const r = route.query.redirect
+    // только внутренние пути — защита от open redirect вида //evil.com
+    const redirect = typeof r === 'string' && r.startsWith('/') && !r.startsWith('//') ? r : '/'
     router.replace(redirect)
   } catch (e) {
     error.value = e.message || 'Не удалось войти'

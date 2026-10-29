@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select, func
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
@@ -48,7 +48,7 @@ async def get_tree(
 
 @router.get("/search", response_model=SearchResult)
 async def search(
-    q: str,
+    q: str = Query(max_length=100),
     db: AsyncSession = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
@@ -56,17 +56,28 @@ async def search(
     if not q:
         return SearchResult()
 
-    like = f"%{q}%"
+    needle = q.lower()
+
+    def match(column):
+        return func.lower(column).contains(needle, autoescape=True)
 
     emp_rows = await db.execute(
         select(Employee)
         .where(
-            Employee.full_name.ilike(like)
-            | Employee.login.ilike(like)
-            | Employee.email.ilike(like)
-            | Employee.phone.ilike(like)
-            | Employee.mobile.ilike(like)
-            | Employee.title.ilike(like)
+            or_(
+                *(
+                    match(c)
+                    for c in (
+                        Employee.full_name,
+                        Employee.login,
+                        Employee.email,
+                        Employee.phone,
+                        Employee.mobile,
+                        Employee.ip_phone,
+                        Employee.title,
+                    )
+                )
+            )
         )
         .order_by(Employee.full_name)
         .limit(50)
@@ -75,7 +86,7 @@ async def search(
 
     dept_rows = await db.execute(
         select(Department)
-        .where(Department.name.ilike(like))
+        .where(match(Department.name))
         .order_by(Department.name)
         .limit(20)
     )
@@ -130,7 +141,6 @@ async def get_department(
     return DepartmentDetail(
         id=dept.id,
         name=dept.name,
-        dn=dept.dn,
         parent_id=dept.parent_id,
         head_login=dept.head_login,
         head=EmployeeShort.model_validate(head) if head else None,
