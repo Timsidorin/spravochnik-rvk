@@ -13,7 +13,25 @@ from .models import Department, Employee
 log = logging.getLogger(__name__)
 
 
-# ---------- Утилиты для работы с атрибутами и DN ----------
+# ============================================================
+# Конфигурация
+# ============================================================
+
+IGNORED_OU_NAMES = {"fired", "disabled", "archive"}
+
+
+def _get_departments_base() -> str:
+    """
+    Корень оргструктуры.
+    Если ad_departments_base не задан — fallback на ad_search_base
+    (фильтрация будет менее точной, но не упадёт).
+    """
+    return settings.ad_departments_base or settings.ad_search_base
+
+
+# ============================================================
+# Утилиты для работы с DN
+# ============================================================
 
 def _first(value) -> str:
     if value is None:
@@ -24,7 +42,6 @@ def _first(value) -> str:
 
 
 def _parse_dn(dn: str) -> list[tuple[str, str]]:
-    """Разбирает DN на список RDN [(attr, value), ...] от листа к корню."""
     if not dn:
         return []
 
@@ -57,50 +74,34 @@ def _parse_dn(dn: str) -> list[tuple[str, str]]:
 
 
 def _build_dn(rdns: list[tuple[str, str]]) -> str:
-    """Собирает DN из RDN-списка (обратная операция к _parse_dn)."""
     return ",".join(f"{k}={v}" for k, v in rdns)
 
 
 def _dn_key(dn: str) -> tuple[tuple[str, str], ...]:
-    """Нормализованный ключ DN для сравнения без учёта регистра."""
     return tuple((k.lower(), v.lower()) for k, v in _parse_dn(dn))
 
 
-def _is_under_base(dn: str, base: str) -> bool:
-    """Проверяет, что dn находится внутри base (или равен ему)."""
+def _is_strictly_under(dn: str, base: str) -> bool:
     dn_key = _dn_key(dn)
     base_key = _dn_key(base)
     if not base_key:
         return True
-    if len(dn_key) < len(base_key):
+    if len(dn_key) <= len(base_key):
         return False
     return dn_key[-len(base_key):] == base_key
 
 
 def _is_valid_department_dn(dn: str) -> bool:
-    """
-    Проверяет, является ли OU бизнес-отделом.
-    Отсеивает системные ветки верхнего уровня (Groups, Computers и т.д.).
-    """
-    rdns = _parse_dn(dn)
-    if not rdns:
+    base = _get_departments_base()
+    if not _is_strictly_under(dn, base):
         return False
-
-    # Игнорируемые инфраструктурные папки
-    ignored_branches = {"groups", "computers", "servers", "services_accounts"}
-    
-    # Ищем самый верхний OU (первый после базового DC/OU)
-    for attr, val in reversed(rdns):
-        if attr.lower() == "ou":
-            if val.lower() in ignored_branches:
-                return False
-            break  # Проверили верхний уровень, дальше нет смысла
-            
+    for attr, val in _parse_dn(dn):
+        if attr.lower() == "ou" and val.lower() in IGNORED_OU_NAMES:
+            return False
     return True
 
 
 def _extract_ou_chain(dn: str) -> list[tuple[str, str]]:
-    """[(full_ou_dn, ou_name), ...] для всех OU в DN, от корня к листьям."""
     rdns = _parse_dn(dn)
     result: list[tuple[str, str]] = []
     for i in range(len(rdns) - 1, -1, -1):
@@ -110,10 +111,11 @@ def _extract_ou_chain(dn: str) -> list[tuple[str, str]]:
     return result
 
 
-# ---------- Синхронное чтение из AD (в отдельном thread) ----------
+# ============================================================
+# Чтение из AD
+# ============================================================
 
 def _fetch_from_ad_sync() -> tuple[list[dict], dict[str, str]]:
-    """Синхронно читает пользователей и OU. Возвращает (users_raw, ou_name_map)."""
     server = Server(settings.ad_server, get_info=ALL)
 
     try:
@@ -130,8 +132,10 @@ def _fetch_from_ad_sync() -> tuple[list[dict], dict[str, str]]:
         users_raw = _fetch_users(conn)
         ou_map = _fetch_ou_map(conn)
         _merge_user_ous_into_map(users_raw, ou_map)
-        log.info("AD: прочитано пользователей=%d, OU под базой=%d",
-                 len(users_raw), len(ou_map))
+        log.info(
+            "AD: прочитано пользователей=%d, отделов=%d",
+            len(users_raw), len(ou_map),
+        )
         return users_raw, ou_map
     finally:
         try:
@@ -161,9 +165,8 @@ def _fetch_users(conn: Connection) -> list[dict]:
 
 
 def _fetch_ou_map(conn: Connection) -> dict[str, str]:
-    """Карта {full_ou_dn: ou_name} для OU строго под search_base."""
     ou_map: dict[str, str] = {}
-    base = settings.ad_search_base
+    base = _get_departments_base()  # ← fallback, не пустая строка
 
     for entry in conn.extend.standard.paged_search(
         search_base=base,
@@ -177,44 +180,47 @@ def _fetch_ou_map(conn: Connection) -> dict[str, str]:
             continue
         attrs = entry["attributes"]
         dn = _first(attrs.get("distinguishedName"))
-        
-        if not dn or not _is_under_base(dn, base) or not _is_valid_department_dn(dn):
+
+        if not dn or not _is_valid_department_dn(dn):
             continue
-            
+
         ou_map[dn] = _first(attrs.get("ou")) or dn
     return ou_map
 
 
 def _merge_user_ous_into_map(users_raw: list[dict], ou_map: dict[str, str]) -> None:
-    """Дополняет карту OU из DN пользователей, но только валидные OU."""
-    base = settings.ad_search_base
     for attrs in users_raw:
         dn = _first(attrs.get("distinguishedName"))
         for ou_dn, ou_name in _extract_ou_chain(dn):
-            if _is_under_base(ou_dn, base) and _is_valid_department_dn(ou_dn):
+            if _is_valid_department_dn(ou_dn):
                 ou_map.setdefault(ou_dn, ou_name)
 
 
-# ---------- Построение отделов и сотрудников ----------
+# ============================================================
+# Построение отделов и сотрудников
+# ============================================================
 
 async def _build_departments(
     db: AsyncSession, ou_map: dict[str, str]
 ) -> dict[str, Department]:
-    """Создаёт отделы от корня к листьям, заполняет parent_id."""
     dept_by_dn: dict[str, Department] = {}
+    base_key = _dn_key(_get_departments_base())
 
-    # Родители должны идти раньше детей — сортируем по числу RDN.
     for dn in sorted(ou_map.keys(), key=lambda d: len(_parse_dn(d))):
         rdns = _parse_dn(dn)
-        parent_dn = _build_dn(rdns[1:]) if len(rdns) > 1 else None
+
+        parent_dept: Department | None = None
+        for i in range(1, len(rdns)):
+            candidate_dn = _build_dn(rdns[i:])
+            if candidate_dn in dept_by_dn:
+                parent_dept = dept_by_dn[candidate_dn]
+                break
+            if _dn_key(candidate_dn) == base_key:
+                break
 
         dept = Department(name=ou_map[dn], dn=dn)
-        if parent_dn:
-            parent = dept_by_dn.get(parent_dn)
-            if parent is not None:
-                dept.parent_id = parent.id
-            else:
-                log.debug("Родитель для %s не найден среди OU (%s)", dn, parent_dn)
+        if parent_dept is not None:
+            dept.parent_id = parent_dept.id
 
         db.add(dept)
         await db.flush()
@@ -227,7 +233,6 @@ async def _build_departments(
 def _resolve_department_id(
     dn: str, dept_by_dn: dict[str, Department]
 ) -> int | None:
-    """Ближайший (самый глубокий) OU пользователя, зарегистрированный как отдел."""
     for ou_dn, _ in reversed(_extract_ou_chain(dn)):
         dept = dept_by_dn.get(ou_dn)
         if dept is not None:
@@ -281,7 +286,6 @@ async def _resolve_managers(
     emp_by_login: dict[str, Employee],
     emp_by_dn: dict[str, Employee],
 ) -> None:
-    """Резолвит manager DN → manager_login."""
     for emp in emp_by_login.values():
         if emp.manager_dn and emp.manager_dn in emp_by_dn:
             emp.manager_login = emp_by_dn[emp.manager_dn].login
@@ -293,7 +297,6 @@ async def _assign_department_heads(
     dept_by_dn: dict[str, Department],
     emp_by_login: dict[str, Employee],
 ) -> None:
-    """Определяет руководителя отдела по самому частому manager_login."""
     managers_per_dept: dict[int, Counter] = {}
     direct_count: dict[int, int] = {}
 
@@ -318,27 +321,20 @@ async def _assign_department_heads(
     await db.commit()
 
 
-# ---------- Точка входа ----------
+# ============================================================
+# Точка входа
+# ============================================================
 
 async def import_from_ad(db: AsyncSession) -> dict:
-    # 1. Чтение AD в отдельном потоке (ldap3 синхронный).
     users_raw, ou_map = await asyncio.to_thread(_fetch_from_ad_sync)
 
-    # 2. Полная перезагрузка.
     await db.execute(delete(Employee))
     await db.execute(delete(Department))
     await db.commit()
 
-    # 3. Отделы.
     dept_by_dn = await _build_departments(db, ou_map)
-
-    # 4. Сотрудники.
     emp_by_login, emp_by_dn = await _build_employees(db, users_raw, dept_by_dn)
-
-    # 5. manager DN → manager_login.
     await _resolve_managers(db, emp_by_login, emp_by_dn)
-
-    # 6. Руководители отделов.
     await _assign_department_heads(db, dept_by_dn, emp_by_login)
 
     return {

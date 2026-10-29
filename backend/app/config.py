@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     ad_user: str
     ad_password: str
     ad_search_base: str
-
+    ad_departments_base: str = ""
     jwt_secret: str = "change-me"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 480
