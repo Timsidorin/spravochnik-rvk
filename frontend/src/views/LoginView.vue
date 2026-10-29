@@ -1,26 +1,7 @@
 <template>
   <div class="login-screen">
     <form class="login-card" @submit.prevent="onSubmit">
-      <div class="logo-mark">
-        <svg viewBox="0 0 40 40" width="40" height="40">
-          <defs>
-            <linearGradient id="login-g" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stop-color="#00d4ff"/>
-              <stop offset="1" stop-color="#0088cc"/>
-            </linearGradient>
-          </defs>
-          <rect width="40" height="40" rx="12" fill="url(#login-g)"/>
-          <path
-            d="M12 20 L18 26 L28 14"
-            stroke="white"
-            stroke-width="3"
-            fill="none"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </div>
-
+      
       <h1>РВК Справочник</h1>
       <p class="subtitle">Телефонный справочник организации</p>
 
