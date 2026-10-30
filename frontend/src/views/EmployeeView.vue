@@ -45,7 +45,35 @@
     <div class="emp-detail-card">
       <div class="emp-detail-header">
         <div class="emp-detail-avatar" :style="{ background: avatarColor }">
-          {{ avatarText }}
+          <img v-if="!photoFailed" :src="photoSrc" alt="" @error="photoFailed = true" />
+          <span v-else>{{ avatarText }}</span>
+        </div>
+        <div v-if="auth.isAdmin" class="photo-actions">
+          <button
+            type="button"
+            class="photo-action-btn"
+            title="Загрузить фото в AD"
+            :disabled="photoBusy"
+            @click="fileInput?.click()"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+          </button>
+          <button
+            v-if="!photoFailed"
+            type="button"
+            class="photo-action-btn"
+            title="Удалить фото"
+            :disabled="photoBusy"
+            @click="removePhoto"
+          >
+            ×
+          </button>
+          <input ref="fileInput" type="file" accept="image/*" hidden @change="uploadPhoto" />
         </div>
         <div class="emp-detail-info">
           <h1 class="emp-detail-name">{{ emp.full_name }}</h1>
@@ -181,11 +209,11 @@
 <script setup>
 import { ref, computed, watch, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { apiGet, apiPut } from '../api'
+import { apiDelete, apiGet, apiPut, apiUpload } from '../api'
 import { useToast } from '../composables/useToast'
 import { useRecent } from '../composables/useRecent'
 import { useAuthStore } from '../stores/auth'
-import { PHONE_FIELDS, formatPhone, initials, pickByName, toTel } from '../utils'
+import { PHONE_FIELDS, formatPhone, initials, pickByName, photoUrl, toTel } from '../utils'
 
 const props = defineProps({
   login: { type: String, required: true },
@@ -241,6 +269,46 @@ const AVATAR_COLORS = [
 const avatarColor = computed(() => pickByName(emp.value?.full_name, AVATAR_COLORS))
 const avatarText = computed(() => initials(emp.value?.full_name))
 
+const fileInput = ref(null)
+const photoFailed = ref(false)
+const photoBusy = ref(false)
+const photoVersion = ref(0)
+const photoSrc = computed(() => photoUrl(props.login, photoVersion.value))
+
+async function uploadPhoto(e) {
+  const file = e.target.files?.[0]
+  e.target.value = ''
+  if (!file) return
+  photoBusy.value = true
+  try {
+    emp.value = await apiUpload(
+      `/api/admin/employees/${encodeURIComponent(props.login)}/photo`, file
+    )
+    photoFailed.value = false
+    photoVersion.value = Date.now()
+    toast.success('Фото сохранено в AD')
+  } catch (err) {
+    toast.error(err.message)
+  } finally {
+    photoBusy.value = false
+  }
+}
+
+async function removePhoto() {
+  if (!confirm('Удалить фото из AD и справочника?')) return
+  photoBusy.value = true
+  try {
+    await apiDelete(`/api/admin/employees/${encodeURIComponent(props.login)}/photo`)
+    photoFailed.value = true
+    photoVersion.value = Date.now()
+    toast.success('Фото удалено')
+  } catch (err) {
+    toast.error(err.message)
+  } finally {
+    photoBusy.value = false
+  }
+}
+
 const phoneRows = computed(() =>
   PHONE_FIELDS.map(({ key, label }) => {
     const value = formatPhone(emp.value?.[key])
@@ -262,6 +330,7 @@ async function load() {
   error.value = ''
   emp.value = null
   deptInfo.value = null
+  photoFailed.value = false
   try {
     const [e, d] = await Promise.all([
       apiGet(`/api/employees/${encodeURIComponent(props.login)}`),
@@ -350,6 +419,45 @@ function goToDept() {
   flex-shrink: 0;
   letter-spacing: 0.02em;
   box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.emp-detail-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.photo-action-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--text-tertiary, #a8a29e);
+  background: var(--bg-subtle, #f5f5f4);
+  border: 1px solid var(--border, #e7e5e4);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.photo-action-btn:hover:not(:disabled) {
+  color: var(--text-primary, #1c1917);
+  border-color: var(--border-strong, #d6d3d1);
+}
+
+.photo-action-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .emp-detail-info {

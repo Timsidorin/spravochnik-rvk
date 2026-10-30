@@ -35,14 +35,24 @@
     </div>
 
     <Transition name="tree-appear">
-      <ul v-if="!loading && tree.length" class="tree-root" role="tree">
-        <TreeNode
-          v-for="node in tree"
-          :key="node.id"
-          :node="node"
-          :level="0"
-        />
-      </ul>
+      <div v-if="!loading && tree.length" class="tree-body">
+        <button class="tree-collapse-btn" title="Свернуть всё" @click="resetKey++">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 8 12 2 20 8"/>
+            <polyline points="4 16 12 10 20 16"/>
+          </svg>
+          Свернуть всё
+        </button>
+        <ul class="tree-root" role="tree">
+          <TreeNode
+            v-for="node in tree"
+            :key="resetKey + '-' + node.id"
+            :node="node"
+            :level="0"
+          />
+        </ul>
+      </div>
     </Transition>
   </nav>
 </template>
@@ -55,6 +65,7 @@ import TreeNode from './TreeNode.vue'
 
 const tree = ref([])
 const loading = ref(false)
+const resetKey = ref(0)
 const toast = useToast()
 
 const skeletonWidths = [62, 78, 54, 70, 45, 82, 58]
@@ -80,6 +91,27 @@ onUnmounted(() => window.removeEventListener('tree:reload', loadTree))
 </script>
 
 <style scoped>
+.tree-collapse-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 8px 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-family: inherit;
+  color: var(--text-tertiary, #a8a29e);
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.tree-collapse-btn:hover {
+  color: var(--text-primary, #1c1917);
+  background: var(--bg-hover, #f5f5f4);
+}
+
 .tree-skeleton {
   padding: 8px;
   display: flex;

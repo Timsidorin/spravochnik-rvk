@@ -27,3 +27,9 @@ export function pickByName(name, list) {
   for (const c of name || '') h = (h * 31 + c.charCodeAt(0)) >>> 0
   return list[h % list.length]
 }
+
+// v меняют после загрузки нового фото, чтобы сбросить кэш браузера
+export function photoUrl(login, v) {
+  const url = `/api/employees/${encodeURIComponent(login)}/photo`
+  return v ? `${url}?v=${v}` : url
+}

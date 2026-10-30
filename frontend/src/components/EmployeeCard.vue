@@ -6,7 +6,25 @@
     @keydown.enter.prevent="onClick"
   >
     <div class="employee-card-inner">
-      <div class="emp-avatar" :style="avatarStyle">{{ avatarText }}</div>
+      <div
+        class="emp-avatar"
+        :class="{ 'emp-avatar-editable': auth.isAdmin }"
+        :style="avatarStyle"
+        :title="auth.isAdmin ? 'Сменить фото' : ''"
+        @click.stop="auth.isAdmin && fileInput?.click()"
+      >
+        <img v-if="!photoFailed" :src="photoSrc" alt="" @error="photoFailed = true" />
+        <span v-else>{{ avatarText }}</span>
+        <input
+          v-if="auth.isAdmin"
+          ref="fileInput"
+          type="file"
+          accept="image/*"
+          hidden
+          @click.stop
+          @change="uploadPhoto"
+        />
+      </div>
 
       <div class="emp-body">
         <div class="emp-name-row">
@@ -56,10 +74,10 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { apiPut } from '../api'
+import { apiPut, apiUpload } from '../api'
 import { useToast } from '../composables/useToast'
 import { useAuthStore } from '../stores/auth'
-import { formatPhone, initials, pickByName, toTel } from '../utils'
+import { formatPhone, initials, pickByName, photoUrl, toTel } from '../utils'
 
 const props = defineProps({
   emp: { type: Object, required: true },
@@ -103,6 +121,34 @@ const avatarStyle = computed(() => ({
   color: '#ffffff',
 }))
 const avatarText = computed(() => initials(props.emp.full_name))
+const photoFailed = ref(false)
+const photoVersion = ref(0)
+const fileInput = ref(null)
+const uploading = ref(false)
+const photoSrc = computed(() => photoUrl(props.emp.login, photoVersion.value))
+watch(() => props.emp.login, () => (photoFailed.value = false))
+
+async function uploadPhoto(e) {
+  const file = e.target.files?.[0]
+  e.target.value = ''
+  if (!file || uploading.value) return
+  uploading.value = true
+  try {
+    Object.assign(
+      props.emp,
+      await apiUpload(
+        `/api/admin/employees/${encodeURIComponent(props.emp.login)}/photo`, file
+      )
+    )
+    photoFailed.value = false
+    photoVersion.value = Date.now()
+    toast.success('Фото сохранено в AD')
+  } catch (err) {
+    toast.error(err.message)
+  } finally {
+    uploading.value = false
+  }
+}
 
 const DISPLAY_ORDER = ['phone', 'mobile', 'ip_phone', 'other_phone', 'sip_line']
 
@@ -167,6 +213,33 @@ function onClick() {
   flex-shrink: 0;
   letter-spacing: 0.02em;
   box-shadow: 0 2px 4px rgba(28, 25, 23, 0.08);
+  overflow: hidden;
+}
+
+.emp-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.emp-avatar-editable {
+  cursor: pointer;
+  position: relative;
+}
+
+.emp-avatar-editable::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpolyline points='17 8 12 3 7 8'/%3E%3Cline x1='12' y1='3' x2='12' y2='15'/%3E%3C/svg%3E")
+    center / 40% no-repeat;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.emp-avatar-editable:hover::after {
+  opacity: 1;
 }
 
 .emp-body {

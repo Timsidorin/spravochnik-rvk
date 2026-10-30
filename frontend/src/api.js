@@ -50,6 +50,14 @@ export const apiPut = (path, body, opts = {}) =>
 
 export const apiDelete = (path, opts = {}) => api(path, { ...opts, method: 'DELETE' })
 
+export const apiUpload = (path, blob, opts = {}) =>
+  api(path, {
+    ...opts,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/octet-stream' },
+    body: blob,
+  })
+
 export const apiPost = (path, body, opts = {}) =>
   api(path, {
     ...opts,

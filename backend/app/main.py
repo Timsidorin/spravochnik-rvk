@@ -20,9 +20,13 @@ log = logging.getLogger(__name__)
 def _add_missing_columns(sync_conn) -> None:
     # create_all не добавляет столбцы в уже существующие таблицы
     columns = {c["name"] for c in inspect(sync_conn).get_columns("employees")}
-    if "manual_phone_fields" not in columns:
-        sync_conn.execute(text("ALTER TABLE employees ADD COLUMN manual_phone_fields VARCHAR"))
-        log.info("БД: добавлен столбец employees.manual_phone_fields")
+    for column, ddl in (
+        ("manual_phone_fields", "VARCHAR"),
+        ("photo", "BLOB"),
+    ):
+        if column not in columns:
+            sync_conn.execute(text(f"ALTER TABLE employees ADD COLUMN {column} {ddl}"))
+            log.info("БД: добавлен столбец employees.%s", column)
 
 
 @asynccontextmanager
@@ -51,7 +55,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["http://10.27.0.17:5173", "http://127.0.0.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -30,6 +30,12 @@ def _first(value) -> str:
     return str(value)
 
 
+def _first_bytes(value) -> bytes | None:
+    if isinstance(value, list):
+        value = value[0] if value else None
+    return bytes(value) if isinstance(value, (bytes, bytearray)) and value else None
+
+
 def _parse_dn(dn: str) -> list[tuple[str, str]]:
     if not dn:
         return []
@@ -130,7 +136,7 @@ def _fetch_users(conn: Connection) -> list[dict]:
         search_scope=SUBTREE,
         attributes=[
             "sAMAccountName", "cn", "displayName", "mail", "title",
-            "manager", "distinguishedName",
+            "manager", "distinguishedName", "thumbnailPhoto",
             *AD_PHONE_ATTRS.values(),
             "physicalDeliveryOfficeName", "l",
         ],
@@ -257,6 +263,7 @@ async def _build_employees(
             city=_first(attrs.get("l")),
             dn=dn or None,
             manual_phone_fields=dump_manual_fields(set(manual)),
+            photo=_first_bytes(attrs.get("thumbnailPhoto")),
             **{**_ad_phones(attrs), **manual},
         )
         db.add(emp)

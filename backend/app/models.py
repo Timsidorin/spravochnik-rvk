@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, LargeBinary
+from sqlalchemy.orm import deferred, relationship
 
 from .database import Base
 
@@ -60,6 +60,7 @@ class Employee(Base):
     office = Column(String)
     city = Column(String)
 
+    photo = deferred(Column(LargeBinary))
     dn = Column(String, unique=True, index=True)
     synced_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 

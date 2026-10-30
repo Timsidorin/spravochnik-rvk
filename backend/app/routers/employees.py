@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,3 +30,17 @@ async def get_employee_department(login: str, db: AsyncSession = Depends(get_db)
     if not dept:
         return EmployeeDepartmentInfo()
     return EmployeeDepartmentInfo(department_id=dept.id, name=dept.name)
+
+
+@router.get("/{login}/photo")
+async def get_employee_photo(login: str, db: AsyncSession = Depends(get_db)):
+    photo = (
+        await db.execute(select(Employee.photo).where(Employee.login == login))
+    ).scalar_one_or_none()
+    if not photo:
+        raise HTTPException(status_code=404, detail="Фото не найдено")
+    return Response(
+        content=photo,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "public, max-age=300"},
+    )
