@@ -12,11 +12,26 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=256)
 
 
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
+class UserInfo(BaseModel):
     username: str
     is_admin: bool
+    is_superadmin: bool
+
+
+class TokenResponse(UserInfo):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class AdminIn(BaseModel):
+    login: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=256)]
+
+
+class AdminOut(BaseModel):
+    login: str
+    full_name: Optional[str] = None
+    from_env: bool
+    added_by: Optional[str] = None
 
 
 class EmployeeShort(BaseModel):

@@ -63,10 +63,7 @@ async function onSubmit() {
       { username: username.value.trim(), password: password.value },
       { skipAuth: true }
     )
-    auth.setSession(data.access_token, {
-      username: data.username,
-      is_admin: data.is_admin,
-    })
+    auth.setSession(data.access_token, data)
     toast.success(`Добро пожаловать, ${data.username}`)
 
     const r = route.query.redirect

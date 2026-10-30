@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -5,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..ad_import import import_from_ad
+from ..ad_write import set_telephone
 from ..auth import require_admin
 from ..database import get_db
 from ..models import Employee
@@ -49,7 +51,28 @@ async def update_phones(
         raise HTTPException(status_code=404, detail="Сотрудник не найден")
 
     data = payload.model_dump(exclude_unset=True)
-    emp.manual_phone_fields = dump_manual_fields(manual_fields(emp) | set(data))
+
+    # Рабочий номер сразу пишем в AD; локально ничего не меняем, если запись не удалась
+    if "phone" in data:
+        if not emp.dn:
+            raise HTTPException(
+                status_code=409,
+                detail="Сотрудник не привязан к AD, номер можно задать только в AD",
+            )
+        try:
+            await asyncio.to_thread(
+                set_telephone, emp.dn, (data["phone"] or "").strip() or None
+            )
+        except Exception:
+            log.exception("Не удалось записать номер %s в AD (%s)", login, user.get("sub"))
+            raise HTTPException(
+                status_code=502,
+                detail="Не удалось записать номер в AD, проверьте права учётной записи и логи сервера",
+            )
+
+    emp.manual_phone_fields = dump_manual_fields(
+        manual_fields(emp) | (set(data) - {"phone"})
+    )
     for field, value in data.items():
         setattr(emp, field, normalize_phone(value))
 

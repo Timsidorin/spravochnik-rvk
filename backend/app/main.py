@@ -7,7 +7,7 @@ from sqlalchemy import inspect, text
 
 from .config import settings
 from .database import Base, engine
-from .routers import admin, auth, departments, employees, quick_contacts
+from .routers import admin, admins, auth, departments, employees, quick_contacts
 from .scheduler import start_scheduler
 
 logging.basicConfig(
@@ -61,6 +61,7 @@ app.include_router(auth.router)
 app.include_router(departments.router)
 app.include_router(employees.router)
 app.include_router(admin.router)
+app.include_router(admins.router)
 app.include_router(quick_contacts.router)
 
 

@@ -21,28 +21,31 @@ if settings.ad_allow_insecure and not (settings.ad_uses_ldaps or settings.ad_use
     )
 
 
-def _make_server() -> Server:
+def _make_server(address: str | None = None) -> Server:
     tls = Tls(
         validate=ssl.CERT_REQUIRED,
         ca_certs_file=settings.ad_ca_cert_file or None,
+        ciphers=settings.ad_tls_ciphers or None,
     )
+    address = address or settings.ad_server
     return Server(
-        settings.ad_server,
-        use_ssl=settings.ad_uses_ldaps,
+        address,
+        use_ssl=address.strip().lower().startswith("ldaps://"),
         tls=tls,
         get_info=NONE,
         connect_timeout=settings.ad_connect_timeout,
     )
 
 
-def open_connection(user: str, password: str) -> Connection:
+def open_connection(user: str, password: str, write: bool = False) -> Connection:
+    server = settings.ad_write_server if write and settings.ad_write_server else None
     auto_bind = (
         AUTO_BIND_TLS_BEFORE_BIND
         if settings.ad_use_starttls and not settings.ad_uses_ldaps
         else AUTO_BIND_NO_TLS
     )
     return Connection(
-        _make_server(),
+        _make_server(server),
         user=user,
         password=password,
         auto_bind=auto_bind,

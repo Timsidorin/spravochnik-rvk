@@ -10,12 +10,21 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => !!token.value)
   const isAdmin = computed(() => !!user.value?.is_admin)
+  const isSuperadmin = computed(() => !!user.value?.is_superadmin)
 
-  function setSession(accessToken, userInfo) {
+  function setUser(info) {
+    user.value = {
+      username: info.username,
+      is_admin: info.is_admin,
+      is_superadmin: info.is_superadmin,
+    }
+    localStorage.setItem(USER_KEY, JSON.stringify(user.value))
+  }
+
+  function setSession(accessToken, info) {
     token.value = accessToken
-    user.value = userInfo
     localStorage.setItem(TOKEN_KEY, accessToken)
-    localStorage.setItem(USER_KEY, JSON.stringify(userInfo))
+    setUser(info)
   }
 
   function logout() {
@@ -25,5 +34,5 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem(USER_KEY)
   }
 
-  return { token, user, isAuthenticated, isAdmin, setSession, logout }
+  return { token, user, isAuthenticated, isAdmin, isSuperadmin, setUser, setSession, logout }
 })

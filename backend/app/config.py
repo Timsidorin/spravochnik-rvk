@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     ad_use_starttls: bool = False
     ad_ca_cert_file: str = ""
     ad_allow_insecure: bool = False
+    # Если пусто — пишем туда же, откуда читаем (на RODC писать нельзя)
+    ad_write_server: str = ""
+    # Строка шифров OpenSSL. DEFAULT:@SECLEVEL=1 принимает слабые ключи сертификатов DC
+    ad_tls_ciphers: str = ""
 
     ad_sync_enabled: bool = True
     ad_sync_times: str = "08:00,20:00"

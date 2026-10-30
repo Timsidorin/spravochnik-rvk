@@ -69,6 +69,15 @@ class Employee(Base):
         return f"<Employee {self.login}>"
 
 
+class Admin(Base):
+    __tablename__ = "admins"
+
+    id = Column(Integer, primary_key=True)
+    login = Column(String, unique=True, index=True, nullable=False)
+    added_by = Column(String, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class QuickContact(Base):
     __tablename__ = "quick_contacts"
 

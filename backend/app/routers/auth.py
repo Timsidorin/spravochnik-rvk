@@ -1,18 +1,20 @@
 import asyncio
 import logging
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from ldap3.core.exceptions import (
     LDAPBindError,
     LDAPSocketOpenError,
     LDAPException,
 )
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..auth import create_token, get_current_user, is_admin, is_superadmin
 from ..config import settings, normalize_login
+from ..database import get_db
 from ..ldap_client import open_connection
 from ..rate_limit import SlidingWindowLimiter
-from ..schemas import LoginRequest, TokenResponse
-from ..auth import create_token
+from ..schemas import LoginRequest, TokenResponse, UserInfo
 
 log = logging.getLogger(__name__)
 
@@ -51,7 +53,7 @@ def _too_many(retry_after: int) -> HTTPException:
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(req: LoginRequest, request: Request):
+async def login(req: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
     client_ip = request.client.host if request.client else "unknown"
     login_name = normalize_login(req.username)
 
@@ -85,13 +87,19 @@ async def login(req: LoginRequest, request: Request):
         )
 
     _user_failures.reset(login_name)
-    is_admin = login_name in settings.admin_logins
-    token = create_token(login_name, is_admin)
-    log.info("Успешный вход: login=%r ip=%s admin=%s", login_name, client_ip, is_admin)
+    info = await _user_info(db, login_name)
+    log.info("Успешный вход: login=%r ip=%s admin=%s", login_name, client_ip, info.is_admin)
+    return TokenResponse(access_token=create_token(login_name), **info.model_dump())
 
-    return TokenResponse(
-        access_token=token,
-        token_type="bearer",
+
+@router.get("/me", response_model=UserInfo)
+async def me(user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    return await _user_info(db, user["sub"])
+
+
+async def _user_info(db: AsyncSession, login_name: str) -> UserInfo:
+    return UserInfo(
         username=login_name,
-        is_admin=is_admin,
+        is_admin=await is_admin(db, login_name),
+        is_superadmin=is_superadmin(login_name),
     )

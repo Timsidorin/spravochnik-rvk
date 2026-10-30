@@ -16,7 +16,7 @@ export async function api(path, opts = {}) {
   if (res.status === 401 && !opts.skipAuth) {
     auth.logout()
     const current = router.currentRoute.value
-    if (current.name !== 'login') {
+    if (current.name !== 'login' && !opts.noRedirect) {
       router.replace({ name: 'login', query: { redirect: current.fullPath } })
     }
     const err = new Error('Сессия истекла, войдите заново')
@@ -28,7 +28,7 @@ export async function api(path, opts = {}) {
     let message = `Ошибка ${res.status}`
     try {
       const data = await res.json()
-      message = data.detail || message
+      if (typeof data.detail === 'string') message = data.detail
     } catch {}
     const err = new Error(message)
     err.status = res.status
@@ -39,7 +39,7 @@ export async function api(path, opts = {}) {
   return res.json()
 }
 
-export const apiGet = (path) => api(path)
+export const apiGet = (path, opts = {}) => api(path, opts)
 
 export const apiPut = (path, body, opts = {}) =>
   api(path, {

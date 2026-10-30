@@ -31,6 +31,12 @@ const routes = [
     component: () => import('./views/SearchView.vue'),
   },
   {
+    path: '/admins',
+    name: 'admins',
+    component: () => import('./views/AdminsView.vue'),
+    meta: { superadmin: true },
+  },
+  {
     path: '/:pathMatch(.*)*',
     redirect: '/',
   },
@@ -45,6 +51,9 @@ router.beforeEach((to) => {
   const auth = useAuthStore()
 
   if (to.name === 'login' && auth.isAuthenticated) {
+    return { name: 'welcome' }
+  }
+  if (to.meta.superadmin && !auth.isSuperadmin) {
     return { name: 'welcome' }
   }
 })
