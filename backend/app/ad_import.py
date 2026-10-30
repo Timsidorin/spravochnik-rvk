@@ -1,7 +1,7 @@
 import asyncio
 import logging
-import re
 from collections import Counter
+from contextlib import suppress
 
 from ldap3 import Connection, SUBTREE
 from ldap3.core.exceptions import LDAPException
@@ -11,29 +11,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .config import settings
 from .ldap_client import open_connection
 from .models import Department, Employee
+from .phones import AD_PHONE_ATTRS, dump_manual_fields, manual_fields, normalize_phone
 
 log = logging.getLogger(__name__)
-
-
-# ============================================================
-# Конфигурация
-# ============================================================
 
 IGNORED_OU_NAMES = {"fired", "disabled", "archive"}
 
 
-def _get_departments_base() -> str:
-    """
-    Корень оргструктуры.
-    Если ad_departments_base не задан — fallback на ad_search_base
-    (фильтрация будет менее точной, но не упадёт).
-    """
+def _departments_base() -> str:
     return settings.ad_departments_base or settings.ad_search_base
 
-
-# ============================================================
-# Утилиты для работы с DN
-# ============================================================
 
 def _first(value) -> str:
     if value is None:
@@ -101,7 +88,7 @@ def _in_ignored_ou(dn: str) -> bool:
 
 
 def _is_valid_department_dn(dn: str) -> bool:
-    return _is_strictly_under(dn, _get_departments_base()) and not _in_ignored_ou(dn)
+    return _is_strictly_under(dn, _departments_base()) and not _in_ignored_ou(dn)
 
 
 def _extract_ou_chain(dn: str) -> list[tuple[str, str]]:
@@ -114,10 +101,6 @@ def _extract_ou_chain(dn: str) -> list[tuple[str, str]]:
     return result
 
 
-# ============================================================
-# Чтение из AD
-# ============================================================
-
 def _fetch_from_ad_sync() -> tuple[list[dict], dict[str, str]]:
     try:
         conn = open_connection(settings.ad_user, settings.ad_password)
@@ -128,16 +111,11 @@ def _fetch_from_ad_sync() -> tuple[list[dict], dict[str, str]]:
         users_raw = _fetch_users(conn)
         ou_map = _fetch_ou_map(conn)
         _merge_user_ous_into_map(users_raw, ou_map)
-        log.info(
-            "AD: прочитано пользователей=%d, отделов=%d",
-            len(users_raw), len(ou_map),
-        )
+        log.info("AD: прочитано пользователей=%d, отделов=%d", len(users_raw), len(ou_map))
         return users_raw, ou_map
     finally:
-        try:
+        with suppress(Exception):
             conn.unbind()
-        except Exception:
-            pass
 
 
 def _fetch_users(conn: Connection) -> list[dict]:
@@ -150,11 +128,10 @@ def _fetch_users(conn: Connection) -> list[dict]:
             "(!(userAccountControl:1.2.840.113556.1.4.803:=2)))"
         ),
         search_scope=SUBTREE,
-        # Телефоны из AD не читаем: они вносятся вручную администратором
-        # и не должны перезаписываться синхронизацией.
         attributes=[
             "sAMAccountName", "cn", "displayName", "mail", "title",
             "manager", "distinguishedName",
+            *AD_PHONE_ATTRS.values(),
             "physicalDeliveryOfficeName", "l",
         ],
         paged_size=1000,
@@ -171,10 +148,8 @@ def _fetch_users(conn: Connection) -> list[dict]:
 
 def _fetch_ou_map(conn: Connection) -> dict[str, str]:
     ou_map: dict[str, str] = {}
-    base = _get_departments_base()  # ← fallback, не пустая строка
-
     for entry in conn.extend.standard.paged_search(
-        search_base=base,
+        search_base=_departments_base(),
         search_filter="(objectClass=organizationalUnit)",
         search_scope=SUBTREE,
         attributes=["ou", "distinguishedName"],
@@ -185,11 +160,8 @@ def _fetch_ou_map(conn: Connection) -> dict[str, str]:
             continue
         attrs = entry["attributes"]
         dn = _first(attrs.get("distinguishedName"))
-
-        if not dn or not _is_valid_department_dn(dn):
-            continue
-
-        ou_map[dn] = _first(attrs.get("ou")) or dn
+        if dn and _is_valid_department_dn(dn):
+            ou_map[dn] = _first(attrs.get("ou")) or dn
     return ou_map
 
 
@@ -201,32 +173,25 @@ def _merge_user_ous_into_map(users_raw: list[dict], ou_map: dict[str, str]) -> N
                 ou_map.setdefault(ou_dn, ou_name)
 
 
-# ============================================================
-# Построение отделов и сотрудников
-# ============================================================
-
 async def _build_departments(
     db: AsyncSession, ou_map: dict[str, str]
 ) -> dict[str, Department]:
     dept_by_dn: dict[str, Department] = {}
-    base_key = _dn_key(_get_departments_base())
+    base_key = _dn_key(_departments_base())
 
-    for dn in sorted(ou_map.keys(), key=lambda d: len(_parse_dn(d))):
+    for dn in sorted(ou_map, key=lambda d: len(_parse_dn(d))):
         rdns = _parse_dn(dn)
 
-        parent_dept: Department | None = None
+        parent: Department | None = None
         for i in range(1, len(rdns)):
             candidate_dn = _build_dn(rdns[i:])
             if candidate_dn in dept_by_dn:
-                parent_dept = dept_by_dn[candidate_dn]
+                parent = dept_by_dn[candidate_dn]
                 break
             if _dn_key(candidate_dn) == base_key:
                 break
 
-        dept = Department(name=ou_map[dn], dn=dn)
-        if parent_dept is not None:
-            dept.parent_id = parent_dept.id
-
+        dept = Department(name=ou_map[dn], dn=dn, parent_id=parent.id if parent else None)
         db.add(dept)
         await db.flush()
         dept_by_dn[dn] = dept
@@ -244,46 +209,31 @@ def _resolve_department_id(
     return None
 
 
-PHONE_FIELDS = ("phone", "mobile", "ip_phone", "other_phone", "sip_line")
-
-_AREA_CODE_RE = re.compile(r"^\s*[\d+\- ]*\(\d+\)\s*")
-
-
-def normalize_phone(value: str | None) -> str | None:
-    """'(812)1003', '8 (812) 1003' -> '1003': отрезает код города в скобках."""
-    if not value:
-        return None
-    value = _AREA_CODE_RE.sub("", value).strip()
-    return value or None
-
-
-async def _snapshot_phones(db: AsyncSession) -> dict[str, dict[str, str]]:
-    """Вручную внесённые телефоны по логину — переживают пересинхронизацию."""
+async def _snapshot_manual_phones(db: AsyncSession) -> dict[str, dict[str, str | None]]:
+    """Ручные телефоны по логину, включая намеренно стёртые (None)."""
     rows = await db.execute(
         select(
-            Employee.login, Employee.phone, Employee.mobile,
-            Employee.ip_phone, Employee.other_phone, Employee.sip_line,
+            Employee.login,
+            Employee.manual_phone_fields,
+            *(getattr(Employee, f) for f in AD_PHONE_ATTRS),
         )
     )
-    result: dict[str, dict[str, str]] = {}
-    for login, *phones in rows.all():
-        values = {
-            f: v
-            for f, v in (
-                (f, normalize_phone(v)) for f, v in zip(PHONE_FIELDS, phones)
-            )
-            if v
-        }
-        if values:
-            result[login] = values
+    result: dict[str, dict[str, str | None]] = {}
+    for row in rows:
+        if fields := manual_fields(row):
+            result[row.login] = {f: getattr(row, f) for f in fields}
     return result
+
+
+def _ad_phones(attrs: dict) -> dict[str, str | None]:
+    return {f: normalize_phone(_first(attrs.get(a))) for f, a in AD_PHONE_ATTRS.items()}
 
 
 async def _build_employees(
     db: AsyncSession,
     users_raw: list[dict],
     dept_by_dn: dict[str, Department],
-    saved_phones: dict[str, dict[str, str]],
+    manual_phones: dict[str, dict[str, str | None]],
 ) -> tuple[dict[str, Employee], dict[str, Employee]]:
     emp_by_login: dict[str, Employee] = {}
     emp_by_dn: dict[str, Employee] = {}
@@ -294,6 +244,7 @@ async def _build_employees(
             continue
         dn = _first(attrs.get("distinguishedName"))
 
+        manual = manual_phones.get(login, {})
         emp = Employee(
             login=login,
             full_name=_first(attrs.get("cn")) or login,
@@ -305,7 +256,8 @@ async def _build_employees(
             office=_first(attrs.get("physicalDeliveryOfficeName")),
             city=_first(attrs.get("l")),
             dn=dn or None,
-            **saved_phones.get(login, {}),
+            manual_phone_fields=dump_manual_fields(set(manual)),
+            **{**_ad_phones(attrs), **manual},
         )
         db.add(emp)
         emp_by_login[login] = emp
@@ -351,29 +303,19 @@ def _assign_department_heads(
             dept.head_login = top_login
 
 
-# ============================================================
-# Точка входа
-# ============================================================
-
 async def import_from_ad(db: AsyncSession) -> dict:
-    """Полная пересинхронизация в одной транзакции: при любой ошибке
-    вызывающий код делает rollback и старые данные сохраняются."""
+    """Полная пересинхронизация в одной транзакции; при ошибке вызывающий делает rollback."""
     users_raw, ou_map = await asyncio.to_thread(_fetch_from_ad_sync)
-
-    saved_phones = await _snapshot_phones(db)
+    manual_phones = await _snapshot_manual_phones(db)
 
     await db.execute(delete(Employee))
     await db.execute(delete(Department))
 
     dept_by_dn = await _build_departments(db, ou_map)
     emp_by_login, emp_by_dn = await _build_employees(
-        db, users_raw, dept_by_dn, saved_phones
+        db, users_raw, dept_by_dn, manual_phones
     )
     _resolve_managers(emp_by_login, emp_by_dn)
     _assign_department_heads(dept_by_dn, emp_by_login)
     await db.commit()
-
-    return {
-        "departments": len(dept_by_dn),
-        "employees": len(emp_by_login),
-    }
+    return {"departments": len(dept_by_dn), "employees": len(emp_by_login)}

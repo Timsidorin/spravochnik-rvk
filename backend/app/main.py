@@ -3,22 +3,33 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import inspect, text
 
 from .config import settings
 from .database import Base, engine
-from .routers import auth, departments, employees, admin, quick_contacts
+from .routers import admin, auth, departments, employees, quick_contacts
 from .scheduler import start_scheduler
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
+log = logging.getLogger(__name__)
+
+
+def _add_missing_columns(sync_conn) -> None:
+    # create_all не добавляет столбцы в уже существующие таблицы
+    columns = {c["name"] for c in inspect(sync_conn).get_columns("employees")}
+    if "manual_phone_fields" not in columns:
+        sync_conn.execute(text("ALTER TABLE employees ADD COLUMN manual_phone_fields VARCHAR"))
+        log.info("БД: добавлен столбец employees.manual_phone_fields")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_add_missing_columns)
     task = start_scheduler()
     try:
         yield
@@ -40,10 +51,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

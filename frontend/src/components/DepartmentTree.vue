@@ -1,6 +1,5 @@
 <template>
   <nav class="tree-nav" aria-label="Подразделения">
-    <!-- Skeleton -->
     <div v-if="loading" class="tree-skeleton" aria-busy="true" aria-label="Загрузка структуры">
       <div
         v-for="(w, i) in skeletonWidths"
@@ -13,7 +12,6 @@
       </div>
     </div>
 
-    <!-- Empty state -->
     <div v-else-if="!tree.length" class="tree-empty">
       <svg
         class="tree-empty-icon"
@@ -36,7 +34,6 @@
       </p>
     </div>
 
-    <!-- Tree -->
     <Transition name="tree-appear">
       <ul v-if="!loading && tree.length" class="tree-root" role="tree">
         <TreeNode
@@ -60,7 +57,6 @@ const tree = ref([])
 const loading = ref(false)
 const toast = useToast()
 
-// Фиксированные ширины для скелетона — без Math.random() в template
 const skeletonWidths = [62, 78, 54, 70, 45, 82, 58]
 
 async function loadTree() {
@@ -75,22 +71,15 @@ async function loadTree() {
   }
 }
 
-function handleReload() {
-  loadTree()
-}
-
 onMounted(() => {
   loadTree()
-  window.addEventListener('tree:reload', handleReload)
+  window.addEventListener('tree:reload', loadTree)
 })
 
-onUnmounted(() => {
-  window.removeEventListener('tree:reload', handleReload)
-})
+onUnmounted(() => window.removeEventListener('tree:reload', loadTree))
 </script>
 
 <style scoped>
-/* ---- Skeleton ---- */
 .tree-skeleton {
   padding: 8px;
   display: flex;
@@ -143,7 +132,6 @@ onUnmounted(() => {
   100% { transform: translateX(100%); }
 }
 
-/* ---- Empty state ---- */
 .tree-empty {
   display: flex;
   flex-direction: column;
@@ -173,7 +161,6 @@ onUnmounted(() => {
   max-width: 200px;
 }
 
-/* ---- Tree appear transition ---- */
 .tree-appear-enter-active {
   transition: opacity 0.3s ease, transform 0.3s ease;
 }

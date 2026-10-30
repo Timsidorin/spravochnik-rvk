@@ -3,40 +3,30 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
-from ..models import Employee, Department
-from ..schemas import EmployeeShort, EmployeeDepartmentInfo
+from ..models import Department, Employee
+from ..schemas import EmployeeDepartmentInfo, EmployeeShort
 
 router = APIRouter(prefix="/api/employees", tags=["employees"])
 
 
-@router.get("/{login}", response_model=EmployeeShort)
-async def get_employee(
-    login: str,
-    db: AsyncSession = Depends(get_db),
-):
-    emp = (
+async def _find(db: AsyncSession, login: str) -> Employee | None:
+    return (
         await db.execute(select(Employee).where(Employee.login == login))
     ).scalar_one_or_none()
+
+
+@router.get("/{login}", response_model=EmployeeShort)
+async def get_employee(login: str, db: AsyncSession = Depends(get_db)):
+    emp = await _find(db, login)
     if not emp:
         raise HTTPException(status_code=404, detail="Сотрудник не найден")
-    return EmployeeShort.model_validate(emp)
+    return emp
 
 
 @router.get("/{login}/department", response_model=EmployeeDepartmentInfo)
-async def get_employee_department(
-    login: str,
-    db: AsyncSession = Depends(get_db),
-):
-    emp = (
-        await db.execute(select(Employee).where(Employee.login == login))
-    ).scalar_one_or_none()
-    if not emp or not emp.department_id:
-        return EmployeeDepartmentInfo()
-
-    dept = (
-        await db.execute(select(Department).where(Department.id == emp.department_id))
-    ).scalar_one_or_none()
+async def get_employee_department(login: str, db: AsyncSession = Depends(get_db)):
+    emp = await _find(db, login)
+    dept = await db.get(Department, emp.department_id) if emp and emp.department_id else None
     if not dept:
         return EmployeeDepartmentInfo()
-
     return EmployeeDepartmentInfo(department_id=dept.id, name=dept.name)

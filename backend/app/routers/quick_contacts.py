@@ -1,7 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import require_admin
@@ -21,13 +21,6 @@ async def _get_or_404(db: AsyncSession, contact_id: int) -> QuickContact:
     return contact
 
 
-def _clean(name: str | None, phone: str | None) -> tuple[str | None, str | None]:
-    # Код города не отрезаем: среди частых номеров бывают городские
-    name = name.strip() if name is not None else None
-    phone = phone.strip() if phone is not None else None
-    return name, phone
-
-
 @router.get("", response_model=list[QuickContactOut])
 async def list_contacts(db: AsyncSession = Depends(get_db)):
     rows = await db.execute(
@@ -42,21 +35,11 @@ async def create_contact(
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(require_admin),
 ):
-    name, phone = _clean(payload.name, payload.phone)
-    if not name or not phone:
-        raise HTTPException(status_code=422, detail="Укажите название и номер")
-
-    sort_order = payload.sort_order
-    if not sort_order:
-        max_order = (
-            await db.execute(select(func.max(QuickContact.sort_order)))
-        ).scalar() or 0
-        sort_order = max_order + 1
-
-    contact = QuickContact(name=name, phone=phone, sort_order=sort_order)
+    max_order = (await db.execute(select(func.max(QuickContact.sort_order)))).scalar() or 0
+    contact = QuickContact(**payload.model_dump(), sort_order=max_order + 1)
     db.add(contact)
     await db.commit()
-    log.info("Частый номер добавлен (%s): %s %s", user.get("sub"), name, phone)
+    log.info("Частый номер добавлен (%s): %s %s", user.get("sub"), contact.name, contact.phone)
     return contact
 
 
@@ -68,20 +51,9 @@ async def update_contact(
     user: dict = Depends(require_admin),
 ):
     contact = await _get_or_404(db, contact_id)
-    data = payload.model_dump(exclude_unset=True)
-    name, phone = _clean(data.get("name"), data.get("phone"))
-
-    if "name" in data:
-        if not name:
-            raise HTTPException(status_code=422, detail="Название не может быть пустым")
-        contact.name = name
-    if "phone" in data:
-        if not phone:
-            raise HTTPException(status_code=422, detail="Номер не может быть пустым")
-        contact.phone = phone
-    if data.get("sort_order") is not None:
-        contact.sort_order = data["sort_order"]
-
+    data = payload.model_dump(exclude_none=True)
+    for field, value in data.items():
+        setattr(contact, field, value)
     await db.commit()
     log.info("Частый номер %s изменён (%s): %s", contact_id, user.get("sub"), data)
     return contact

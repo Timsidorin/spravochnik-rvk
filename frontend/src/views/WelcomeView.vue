@@ -1,6 +1,5 @@
 <template>
   <div class="home">
-    <!-- Big search -->
     <section class="hero">
       <h1 class="hero-title">Телефонный справочник</h1>
       <form class="hero-search" @submit.prevent="goSearch">
@@ -21,7 +20,6 @@
       </form>
     </section>
 
-    <!-- Quick contacts -->
     <section v-if="contacts.length || auth.isAdmin" class="block">
       <div class="block-head">
         <h2>Частые номера</h2>
@@ -57,7 +55,6 @@
           </template>
         </div>
 
-        <!-- Admin: add new -->
         <form v-if="auth.isAdmin" class="quick-item quick-add" @submit.prevent="addContact">
           <input v-model="newContact.name" class="quick-name-input" placeholder="Новый: название" />
           <input v-model="newContact.phone" class="quick-phone quick-phone-input" placeholder="номер" />
@@ -72,7 +69,6 @@
       </div>
     </section>
 
-    <!-- Recent -->
     <section v-if="recent.length" class="block">
       <div class="block-head">
         <h2>Недавно просмотренные</h2>
@@ -106,16 +102,16 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { apiGet, apiPost, apiPut, apiDelete } from '../api'
-import { useAuthStore } from '../stores/auth'
 import { useToast } from '../composables/useToast'
 import { useRecent } from '../composables/useRecent'
+import { useAuthStore } from '../stores/auth'
+import { toTel } from '../utils'
 
 const router = useRouter()
 const auth = useAuthStore()
 const toast = useToast()
 const { recent, clear: clearRecent } = useRecent()
 
-/* ---- Search ---- */
 const query = ref('')
 const searchInput = ref(null)
 let debounceTimer = null
@@ -131,7 +127,6 @@ function onInput() {
   if (query.value.trim()) debounceTimer = setTimeout(goSearch, 400)
 }
 
-/* ---- Quick contacts ---- */
 const contacts = ref([])
 const drafts = reactive({})
 const newContact = reactive({ name: '', phone: '' })
@@ -197,9 +192,6 @@ async function removeContact(c) {
   }
 }
 
-/* ---- Utils ---- */
-const toTel = (v) => String(v || '').replace(/[^\d+]/g, '')
-
 async function copy(text) {
   try {
     await navigator.clipboard.writeText(text)
@@ -228,7 +220,6 @@ onMounted(() => {
   to   { opacity: 1; transform: none; }
 }
 
-/* ---------- Hero / search ---------- */
 .hero {
   text-align: center;
   margin-bottom: 40px;
@@ -284,7 +275,6 @@ onMounted(() => {
   color: var(--text-tertiary, #a8a29e);
 }
 
-/* ---------- Blocks ---------- */
 .block {
   margin-bottom: 36px;
 }
@@ -319,7 +309,6 @@ onMounted(() => {
   color: var(--text-primary, #1c1917);
 }
 
-/* ---------- Quick contacts ---------- */
 .quick-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -442,7 +431,6 @@ a.quick-phone:hover {
   cursor: default;
 }
 
-/* ---------- Recent ---------- */
 .recent-list {
   background: var(--bg-surface, #ffffff);
   border: 1px solid var(--border, #e7e5e4);

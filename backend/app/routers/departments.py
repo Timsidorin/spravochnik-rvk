@@ -9,18 +9,19 @@ from ..schemas import DepartmentNode, DepartmentDetail, EmployeeShort, SearchRes
 router = APIRouter(prefix="/api/departments", tags=["departments"])
 
 
-@router.get("/tree", response_model=list[DepartmentNode])
-async def get_tree(
-    db: AsyncSession = Depends(get_db),
-):
-    depts = (await db.execute(select(Department))).scalars().all()
-
+async def _employee_counts(db: AsyncSession) -> dict[int, int]:
     rows = await db.execute(
         select(Employee.department_id, func.count(Employee.id))
         .where(Employee.department_id.isnot(None))
         .group_by(Employee.department_id)
     )
-    counts: dict[int, int] = dict(rows.all())
+    return dict(rows.all())
+
+
+@router.get("/tree", response_model=list[DepartmentNode])
+async def get_tree(db: AsyncSession = Depends(get_db)):
+    depts = (await db.execute(select(Department))).scalars().all()
+    counts = await _employee_counts(db)
 
     nodes: dict[int, dict] = {}
     for d in depts:
@@ -49,52 +50,42 @@ async def search(
     q: str = Query(max_length=100),
     db: AsyncSession = Depends(get_db),
 ):
-    q = (q or "").strip()
-    if not q:
+    needle = q.strip().lower()
+    if not needle:
         return SearchResult()
-
-    needle = q.lower()
 
     def match(column):
         return func.lower(column).contains(needle, autoescape=True)
 
-    emp_rows = await db.execute(
-        select(Employee)
-        .where(
-            or_(
-                *(
-                    match(c)
-                    for c in (
-                        Employee.full_name,
-                        Employee.login,
-                        Employee.email,
-                        Employee.phone,
-                        Employee.mobile,
-                        Employee.ip_phone,
-                        Employee.title,
-                    )
-                )
-            )
+    searchable = (
+        Employee.full_name,
+        Employee.login,
+        Employee.email,
+        Employee.phone,
+        Employee.mobile,
+        Employee.ip_phone,
+        Employee.other_phone,
+        Employee.title,
+    )
+    employees = (
+        await db.execute(
+            select(Employee)
+            .where(or_(*(match(c) for c in searchable)))
+            .order_by(Employee.full_name)
+            .limit(50)
         )
-        .order_by(Employee.full_name)
-        .limit(50)
-    )
-    employees = emp_rows.scalars().all()
+    ).scalars().all()
 
-    dept_rows = await db.execute(
-        select(Department)
-        .where(match(Department.name))
-        .order_by(Department.name)
-        .limit(20)
-    )
-    departments = dept_rows.scalars().all()
+    departments = (
+        await db.execute(
+            select(Department)
+            .where(match(Department.name))
+            .order_by(Department.name)
+            .limit(20)
+        )
+    ).scalars().all()
 
-    count_rows = await db.execute(
-        select(Employee.department_id, func.count(Employee.id))
-        .where(Employee.department_id.isnot(None))
-        .group_by(Employee.department_id)
-    )
-    dept_counts = dict(count_rows.all())
+    dept_counts = await _employee_counts(db)
 
     return SearchResult(
         employees=[EmployeeShort.model_validate(e) for e in employees],
@@ -111,28 +102,21 @@ async def search(
 
 
 @router.get("/{dept_id}", response_model=DepartmentDetail)
-async def get_department(
-    dept_id: int,
-    db: AsyncSession = Depends(get_db),
-):
-    dept = (
-        await db.execute(select(Department).where(Department.id == dept_id))
-    ).scalar_one_or_none()
+async def get_department(dept_id: int, db: AsyncSession = Depends(get_db)):
+    dept = await db.get(Department, dept_id)
     if not dept:
         raise HTTPException(status_code=404, detail="Отдел не найден")
 
-    emp_rows = await db.execute(
-        select(Employee)
-        .where(Employee.department_id == dept.id)
-        .order_by(Employee.full_name)
-    )
-    all_emps = emp_rows.scalars().all()
+    all_emps = (
+        await db.execute(
+            select(Employee)
+            .where(Employee.department_id == dept.id)
+            .order_by(Employee.full_name)
+        )
+    ).scalars().all()
 
-    head = None
-    if dept.head_login:
-        head = next((e for e in all_emps if e.login == dept.head_login), None)
-
-    others = [e for e in all_emps if head is None or e.login != head.login]
+    head = next((e for e in all_emps if e.login == dept.head_login), None)
+    others = [e for e in all_emps if e is not head]
 
     return DepartmentDetail(
         id=dept.id,

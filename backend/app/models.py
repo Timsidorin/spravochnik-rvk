@@ -55,6 +55,8 @@ class Employee(Base):
     ip_phone = Column(String)
     other_phone = Column(String)
     sip_line = Column(String)
+    # Поля телефонов через запятую, которые админ правил вручную — импорт из AD их не трогает
+    manual_phone_fields = Column(String, nullable=True)
     office = Column(String)
     city = Column(String)
 
@@ -68,8 +70,6 @@ class Employee(Base):
 
 
 class QuickContact(Base):
-    """Частые номера на главной (приёмная, охрана и т.п.) — ведёт админ, AD не трогает."""
-
     __tablename__ = "quick_contacts"
 
     id = Column(Integer, primary_key=True)

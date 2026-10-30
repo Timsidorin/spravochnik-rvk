@@ -20,14 +20,10 @@ class Settings(BaseSettings):
     ad_departments_base: str = ""
     ad_domain: str = "RVK.local"
     ad_connect_timeout: int = 5
-    # Шифрование LDAP: ldaps:// в AD_SERVER или StartTLS поверх ldap://
     ad_use_starttls: bool = False
-    # PEM с корневым сертификатом CA домена; пусто — системное хранилище
     ad_ca_cert_file: str = ""
-    # Явное разрешение работать по открытому ldap:// (пароли в открытом виде!)
     ad_allow_insecure: bool = False
 
-    # Плановая синхронизация из AD: два раза в день по местному времени сервера
     ad_sync_enabled: bool = True
     ad_sync_times: str = "08:00,20:00"
 
@@ -37,7 +33,6 @@ class Settings(BaseSettings):
 
     admin_users: str = ""
 
-    # Ограничение попыток входа
     login_max_failures_per_user: int = 5
     login_max_attempts_per_ip: int = 20
     login_window_seconds: int = 300

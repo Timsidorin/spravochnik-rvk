@@ -6,10 +6,9 @@
       @click="toggle"
       @keydown.enter.prevent="toggle"
       @keydown.right.prevent="hasChildren && !isOpen && (isOpen = true)"
-      @keydown.left.prevent="hasChildren && isOpen ? (isOpen = false) : $emit('focus-parent')"
+      @keydown.left.prevent="isOpen = false"
       tabindex="0"
     >
-      <!-- Toggle chevron -->
       <span v-if="hasChildren" class="tree-toggle" :class="{ open: isOpen }">
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
           <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" stroke-width="1.5"
@@ -18,7 +17,6 @@
       </span>
       <span v-else class="tree-toggle-spacer"></span>
 
-      <!-- Icon: folder open / folder closed / dot -->
       <svg v-if="hasChildren && isOpen" class="tree-icon" width="16" height="16" viewBox="0 0 24 24"
            fill="none" stroke="currentColor" stroke-width="1.5"
            stroke-linecap="round" stroke-linejoin="round">
@@ -36,16 +34,13 @@
       </svg>
       <span v-else class="tree-dot"></span>
 
-      <!-- Label -->
       <span class="tree-label" :title="node.name">{{ node.name }}</span>
 
-      <!-- Count badge -->
       <span v-if="node.employees_count" class="tree-count">
         {{ node.employees_count }}
       </span>
     </div>
 
-    <!-- Children -->
     <Transition name="tree-collapse">
       <ul v-if="hasChildren && isOpen" class="tree-children" role="group">
         <TreeNode
@@ -68,38 +63,25 @@ const props = defineProps({
   level: { type: Number, default: 0 },
 })
 
-defineEmits(['focus-parent'])
-
 const route = useRoute()
 const router = useRouter()
 const isOpen = ref(false)
 
 const hasChildren = computed(() => props.node.children?.length > 0)
-
-const isActive = computed(() => {
-  return route.params.id === String(props.node.id)
-})
+const isActive = computed(() => route.params.id === String(props.node.id))
 
 function toggle() {
-  if (hasChildren.value) {
-    isOpen.value = !isOpen.value
-  }
+  if (hasChildren.value) isOpen.value = !isOpen.value
   router.push({ name: 'department', params: { id: props.node.id } })
 }
 </script>
 
 <style scoped>
-/* ============================================
-   NODE
-   ============================================ */
 .tree-node {
   list-style: none;
   position: relative;
 }
 
-/* ============================================
-   ROW
-   ============================================ */
 .tree-row {
   display: flex;
   align-items: center;
@@ -133,7 +115,6 @@ function toggle() {
   font-weight: 600;
 }
 
-/* Active indicator bar */
 .tree-row.active::after {
   content: '';
   position: absolute;
@@ -146,9 +127,6 @@ function toggle() {
   border-radius: 1px;
 }
 
-/* ============================================
-   CHEVRON
-   ============================================ */
 .tree-toggle {
   width: 18px;
   height: 18px;
@@ -175,9 +153,6 @@ function toggle() {
   flex-shrink: 0;
 }
 
-/* ============================================
-   ICONS
-   ============================================ */
 .tree-icon {
   flex-shrink: 0;
   color: var(--text-tertiary, #a8a29e);
@@ -193,7 +168,6 @@ function toggle() {
   color: var(--text-primary, #1c1917);
 }
 
-/* Leaf dot */
 .tree-dot {
   width: 5px;
   height: 5px;
@@ -212,9 +186,6 @@ function toggle() {
   background: var(--accent, #1c1917);
 }
 
-/* ============================================
-   LABEL & COUNT
-   ============================================ */
 .tree-label {
   flex: 1;
   font-size: 16px;
@@ -248,9 +219,6 @@ function toggle() {
   background: var(--accent-soft-strong, rgba(28, 25, 23, 0.1));
 }
 
-/* ============================================
-   CHILDREN & TREE LINES
-   ============================================ */
 .tree-children {
   list-style: none;
   padding: 0;
@@ -260,7 +228,6 @@ function toggle() {
   margin-left: 12px;
 }
 
-/* Vertical line */
 .tree-children::before {
   content: '';
   position: absolute;
@@ -271,7 +238,6 @@ function toggle() {
   background: var(--border, #e7e5e4);
 }
 
-/* Horizontal branch to each child row */
 .tree-children > :deep(.tree-node) > .tree-row::before {
   content: '';
   position: absolute;
@@ -293,9 +259,6 @@ function toggle() {
   background: var(--bg-surface, #ffffff);
 }
 
-/* ============================================
-   COLLAPSE ANIMATION
-   ============================================ */
 .tree-collapse-enter-active {
   transition: opacity 180ms ease, max-height 200ms ease;
   overflow: hidden;

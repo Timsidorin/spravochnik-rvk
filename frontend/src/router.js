@@ -44,8 +44,6 @@ const router = createRouter({
 router.beforeEach((to) => {
   const auth = useAuthStore()
 
-  // Справочник публичный — авторизация нужна только администратору.
-  // Уже вошедший админ со страницы логина возвращается на главную.
   if (to.name === 'login' && auth.isAuthenticated) {
     return { name: 'welcome' }
   }

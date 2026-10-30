@@ -1,41 +1,41 @@
 :root {
-  /* Neutral palette — тёплый серый, не "больничный" */
+  /* Palette */
   --bg-app: #fafaf9;
   --bg-surface: #ffffff;
   --bg-subtle: #f5f5f4;
   --bg-hover: #f5f5f4;
   --bg-active: #ebebe9;
 
-  /* Borders — тонкие, едва заметные */
+  /* Borders */
   --border: #e7e5e4;
   --border-strong: #d6d3d1;
   --border-focus: #44403c;
 
-  /* Text — высокий контраст, но не чёрный */
+  /* Text */
   --text-primary: #1c1917;
   --text-secondary: #57534e;
   --text-tertiary: #a8a29e;
   --text-on-accent: #ffffff;
 
-  /* Accent — сдержанный графитовый с тёплым подтоном */
+  /* Accent */
   --accent: #1c1917;
   --accent-hover: #292524;
   --accent-soft: rgba(28, 25, 23, 0.06);
   --accent-soft-strong: rgba(28, 25, 23, 0.1);
 
-  /* Semantic — приглушённые */
+  /* Semantic */
   --success: #16a34a;
   --danger: #b91c1c;
   --danger-soft: rgba(185, 28, 28, 0.08);
 
-  /* Shadows — очень мягкие, многослойные */
+  /* Shadows */
   --shadow-xs: 0 1px 2px rgba(28, 25, 23, 0.04);
   --shadow-sm: 0 1px 2px rgba(28, 25, 23, 0.04), 0 1px 3px rgba(28, 25, 23, 0.06);
   --shadow-md: 0 2px 4px rgba(28, 25, 23, 0.04), 0 4px 12px rgba(28, 25, 23, 0.06);
   --shadow-lg: 0 8px 24px rgba(28, 25, 23, 0.08), 0 2px 6px rgba(28, 25, 23, 0.04);
   --shadow-xl: 0 24px 48px -12px rgba(28, 25, 23, 0.18);
 
-  /* Radii — согласованная шкала */
+  /* Radii */
   --r-xs: 6px;
   --r-sm: 8px;
   --r-md: 10px;
@@ -96,9 +96,6 @@ a:hover {
   color: var(--text-secondary);
 }
 
-/* ============================================
-   LOGIN SCREEN
-   ============================================ */
 .login-screen {
   display: flex;
   align-items: center;
@@ -143,18 +140,6 @@ a:hover {
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-.logo-mark {
-  margin-bottom: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: var(--r-md);
-  background: var(--accent);
-  color: var(--text-on-accent);
 }
 
 .login-card h1 {
@@ -248,18 +233,12 @@ a:hover {
   text-align: center;
 }
 
-/* ============================================
-   MAIN LAYOUT
-   ============================================ */
 .main-screen {
   display: flex;
   height: 100vh;
   background: var(--bg-app);
 }
 
-/* ============================================
-   SIDEBAR
-   ============================================ */
 .sidebar {
   width: 300px;
   min-width: 300px;
@@ -549,9 +528,6 @@ a:hover {
   }
 }
 
-/* ============================================
-   CONTENT AREA
-   ============================================ */
 .content {
   flex: 1;
   overflow-y: auto;
@@ -700,23 +676,6 @@ a:hover {
   transform: translateY(0);
 }
 
-.head-card {
-  background: var(--bg-surface);
-  border-color: var(--border);
-  position: relative;
-}
-
-.head-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 3px;
-  height: 100%;
-  background: var(--accent);
-  border-radius: var(--r-lg) 0 0 var(--r-lg);
-}
-
 .employee-card-inner {
   display: flex;
   align-items: flex-start;
@@ -765,12 +724,6 @@ a:hover {
   line-height: 1.4;
 }
 
-.emp-no-phone {
-  color: var(--text-tertiary);
-  font-size: 12px;
-  font-style: italic;
-}
-
 .badge-head {
   display: inline-block;
   font-size: 10px;
@@ -796,112 +749,6 @@ a:hover {
   border-radius: var(--r-lg);
 }
 
-/* ============================================
-   EMPLOYEE DETAIL
-   ============================================ */
-.emp-detail {
-  max-width: 720px;
-  margin: 0 auto;
-  animation: fadeIn 0.35s ease;
-}
-
-.emp-detail-card {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r-xl);
-  padding: 40px;
-  box-shadow: var(--shadow-sm);
-}
-
-.emp-detail-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 20px;
-  margin-bottom: 32px;
-  padding-bottom: 28px;
-  border-bottom: 1px solid var(--border);
-}
-
-.emp-detail-avatar {
-  width: 72px;
-  height: 72px;
-  border-radius: var(--r-lg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 22px;
-  color: var(--text-on-accent);
-  flex-shrink: 0;
-  background: var(--accent);
-  letter-spacing: 0.02em;
-  box-shadow: var(--shadow-sm);
-}
-
-.emp-detail-name {
-  font-size: 24px;
-  font-weight: 600;
-  margin-bottom: 4px;
-  letter-spacing: -0.02em;
-  color: var(--text-primary);
-  line-height: 1.2;
-}
-
-.emp-detail-title {
-  color: var(--text-secondary);
-  font-size: 14px;
-}
-
-.detail-rows {
-  display: flex;
-  flex-direction: column;
-}
-
-.detail-row {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.detail-row:last-child {
-  border-bottom: none;
-}
-
-.detail-label {
-  width: 140px;
-  flex-shrink: 0;
-  font-size: 13px;
-  color: var(--text-tertiary);
-  font-weight: 400;
-}
-
-.detail-value {
-  font-size: 14px;
-  color: var(--text-primary);
-  word-break: break-word;
-  font-weight: 400;
-}
-
-.dept-link {
-  color: var(--text-primary);
-  cursor: pointer;
-  text-decoration: none;
-  font-size: 14px;
-  font-weight: 500;
-  border-bottom: 1px solid var(--border-strong);
-  transition: border-color var(--t-fast);
-}
-
-.dept-link:hover {
-  border-bottom-color: var(--text-primary);
-  text-decoration: none;
-}
-
-/* ============================================
-   SEARCH RESULTS
-   ============================================ */
 .search-results {
   max-width: 1100px;
   margin: 0 auto;
@@ -928,9 +775,6 @@ a:hover {
   font-size: 14px;
 }
 
-/* ============================================
-   TOAST
-   ============================================ */
 .toast {
   position: fixed;
   bottom: 24px;
@@ -970,9 +814,6 @@ a:hover {
   transform: translateY(12px);
 }
 
-/* ============================================
-   RESPONSIVE
-   ============================================ */
 @media (max-width: 900px) {
   .sidebar {
     width: 260px;

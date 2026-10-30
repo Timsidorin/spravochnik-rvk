@@ -1,5 +1,4 @@
 <template>
-  <!-- Skeleton -->
   <div v-if="loading" class="emp-detail">
     <div class="emp-detail-card">
       <div class="emp-detail-header">
@@ -18,7 +17,6 @@
     </div>
   </div>
 
-  <!-- Error -->
   <div v-else-if="error" class="emp-detail">
     <div class="emp-detail-card emp-detail-error">
       <div class="error-icon">
@@ -35,9 +33,7 @@
     </div>
   </div>
 
-  <!-- Employee -->
   <div v-else-if="emp" class="emp-detail">
-    <!-- Back link -->
     <button v-if="deptInfo?.department_id" class="back-link" @click="goToDept">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -47,10 +43,9 @@
     </button>
 
     <div class="emp-detail-card">
-      <!-- Header -->
       <div class="emp-detail-header">
-        <div class="emp-detail-avatar" :style="avatarStyle">
-          {{ initials }}
+        <div class="emp-detail-avatar" :style="{ background: avatarColor }">
+          {{ avatarText }}
         </div>
         <div class="emp-detail-info">
           <h1 class="emp-detail-name">{{ emp.full_name }}</h1>
@@ -59,7 +54,6 @@
         </div>
       </div>
 
-      <!-- Contact section -->
       <div class="detail-section">
         <div class="section-heading">Контакты</div>
 
@@ -85,7 +79,7 @@
         </div>
 
         <template v-if="auth.isAdmin">
-          <div v-for="f in editFields" :key="f.key" class="detail-row">
+          <div v-for="f in PHONE_FIELDS" :key="f.key" class="detail-row">
             <div class="detail-icon">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -101,7 +95,7 @@
               <input
                 v-model="editForm[f.key]"
                 class="phone-input"
-                :placeholder="'—'"
+                placeholder="—"
                 :disabled="savingField === f.key"
                 @blur="saveField(f.key)"
                 @keydown.enter.prevent="$event.target.blur()"
@@ -112,7 +106,7 @@
         </template>
 
         <template v-else>
-          <div v-for="p in phoneRows" :key="p.label" class="detail-row">
+          <div v-for="p in phoneRows" :key="p.key" class="detail-row">
             <div class="detail-icon">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                    stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -139,7 +133,6 @@
         </template>
       </div>
 
-      <!-- Workplace section -->
       <div v-if="emp.office || emp.city || deptInfo?.department_id" class="detail-section">
         <div class="section-heading">Рабочее место</div>
 
@@ -180,8 +173,6 @@
           <div class="detail-value">{{ emp.city }}</div>
         </div>
       </div>
-
-
     </div>
   </div>
 </template>
@@ -191,8 +182,9 @@ import { ref, computed, watch, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { apiGet, apiPut } from '../api'
 import { useToast } from '../composables/useToast'
-import { useAuthStore } from '../stores/auth'
 import { useRecent } from '../composables/useRecent'
+import { useAuthStore } from '../stores/auth'
+import { PHONE_FIELDS, formatPhone, initials, pickByName, toTel } from '../utils'
 
 const props = defineProps({
   login: { type: String, required: true },
@@ -208,20 +200,12 @@ const deptInfo = ref(null)
 const loading = ref(false)
 const error = ref('')
 
-/* ---- Admin inline phone editing ---- */
-const editFields = [
-  { key: 'phone', label: 'Рабочий' },
-  { key: 'mobile', label: 'Мобильный' },
-  { key: 'ip_phone', label: 'IP-телефон' },
-  { key: 'sip_line', label: 'SIP / Teams' },
-  { key: 'other_phone', label: 'Другой' },
-]
 const editForm = reactive({})
 const savingField = ref('')
 const savedField = ref('')
 
 function fillEditForm() {
-  for (const f of editFields) editForm[f.key] = emp.value?.[f.key] || ''
+  for (const f of PHONE_FIELDS) editForm[f.key] = emp.value?.[f.key] || ''
 }
 
 let savedTimer = null
@@ -249,51 +233,20 @@ async function saveField(key) {
   }
 }
 
-/* ---- Avatar ---- */
-const PALETTE = [
+const AVATAR_COLORS = [
   '#44403c', '#57534e', '#78716c', '#292524',
   '#1c1917', '#6b7280', '#4b5563', '#374151',
 ]
+const avatarColor = computed(() => pickByName(emp.value?.full_name, AVATAR_COLORS))
+const avatarText = computed(() => initials(emp.value?.full_name))
 
-function colorFor(name) {
-  let h = 0
-  for (const c of name || '') h = (h * 31 + c.charCodeAt(0)) >>> 0
-  return PALETTE[h % PALETTE.length]
-}
+const phoneRows = computed(() =>
+  PHONE_FIELDS.map(({ key, label }) => {
+    const value = formatPhone(emp.value?.[key])
+    return { key, label, value, tel: toTel(value) }
+  })
+)
 
-const avatarStyle = computed(() => ({
-  background: colorFor(emp.value?.full_name),
-}))
-
-const initials = computed(() => {
-  const parts = (emp.value?.full_name || '').trim().split(/\s+/).filter(Boolean)
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
-  return (emp.value?.full_name || '?').slice(0, 2).toUpperCase()
-})
-
-/* ---- Phones ---- */
-function formatPhone(raw) {
-  if (!raw) return ''
-  const s = String(raw).replace(/^tel:/i, '').trim()
-  const m = s.match(/^(.*?);ext=(.*)$/i)
-  return m ? `${m[1]} (доб. ${m[2]})` : s
-}
-
-const phoneRows = computed(() => {
-  if (!emp.value) return []
-  const rows = []
-  const add = (label, value) => {
-    rows.push({ label, value: value || '', tel: (value || '').replace(/[^\d+]/g, '') })
-  }
-  add('Рабочий', emp.value.phone)
-  add('Мобильный', emp.value.mobile)
-  add('IP-телефон', emp.value.ip_phone)
-  add('SIP / Teams', formatPhone(emp.value.sip_line))
-  add('Другой', emp.value.other_phone)
-  return rows
-})
-
-/* ---- Copy ---- */
 async function copyToClipboard(text) {
   try {
     await navigator.clipboard.writeText(text)
@@ -303,7 +256,6 @@ async function copyToClipboard(text) {
   }
 }
 
-/* ---- Load ---- */
 async function load() {
   loading.value = true
   error.value = ''
@@ -336,9 +288,6 @@ function goToDept() {
 </script>
 
 <style scoped>
-/* ============================================
-   LAYOUT
-   ============================================ */
 .emp-detail {
   max-width: 680px;
   margin: 0 auto;
@@ -350,9 +299,6 @@ function goToDept() {
   to   { opacity: 1; transform: none; }
 }
 
-/* ============================================
-   BACK LINK
-   ============================================ */
 .back-link {
   display: inline-flex;
   align-items: center;
@@ -373,9 +319,6 @@ function goToDept() {
   color: var(--text-primary, #1c1917);
 }
 
-/* ============================================
-   CARD
-   ============================================ */
 .emp-detail-card {
   background: var(--bg-surface, #ffffff);
   border: 1px solid var(--border, #e7e5e4);
@@ -384,9 +327,6 @@ function goToDept() {
   box-shadow: var(--shadow-sm, 0 1px 3px rgba(28,25,23,0.04));
 }
 
-/* ============================================
-   HEADER
-   ============================================ */
 .emp-detail-header {
   display: flex;
   align-items: center;
@@ -408,6 +348,7 @@ function goToDept() {
   color: #ffffff;
   flex-shrink: 0;
   letter-spacing: 0.02em;
+  box-shadow: var(--shadow-sm);
 }
 
 .emp-detail-info {
@@ -436,9 +377,6 @@ function goToDept() {
   font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
 }
 
-/* ============================================
-   ADMIN EDIT
-   ============================================ */
 .phone-input {
   width: 100%;
   padding: 0;
@@ -500,9 +438,6 @@ function goToDept() {
   color: #0ca678;
 }
 
-/* ============================================
-   SECTIONS
-   ============================================ */
 .detail-section {
   margin-bottom: 28px;
 }
@@ -521,9 +456,6 @@ function goToDept() {
   padding-left: 39px;
 }
 
-/* ============================================
-   ROWS
-   ============================================ */
 .detail-row {
   display: flex;
   align-items: center;
@@ -601,7 +533,6 @@ function goToDept() {
   font-weight: 500;
 }
 
-/* Copy button */
 .copy-btn {
   width: 28px;
   height: 28px;
@@ -627,9 +558,6 @@ function goToDept() {
   color: var(--text-primary, #1c1917);
 }
 
-/* ============================================
-   EMPTY & ERROR
-   ============================================ */
 .detail-empty {
   text-align: center;
   padding: 32px 16px;
@@ -677,9 +605,6 @@ function goToDept() {
   background: var(--accent-hover, #292524);
 }
 
-/* ============================================
-   SKELETON
-   ============================================ */
 .skeleton-avatar {
   width: 64px;
   height: 64px;
@@ -759,9 +684,6 @@ function goToDept() {
   100% { transform: translateX(100%); }
 }
 
-/* ============================================
-   RESPONSIVE
-   ============================================ */
 @media (max-width: 600px) {
   .emp-detail-card {
     padding: 24px 20px;

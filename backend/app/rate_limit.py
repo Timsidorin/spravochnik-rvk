@@ -3,11 +3,7 @@ from collections import deque
 
 
 class SlidingWindowLimiter:
-    """Счётчик событий в скользящем окне, хранится в памяти процесса.
-
-    При нескольких воркерах uvicorn у каждого свой счётчик — лимиты
-    фактически умножаются на число воркеров.
-    """
+    """Счётчик событий в скользящем окне в памяти процесса (у каждого воркера свой)."""
 
     def __init__(self, limit: int, window_seconds: int):
         self.limit = limit
@@ -34,7 +30,6 @@ class SlidingWindowLimiter:
             self._prune(key, now)
 
     def retry_after(self, key: str) -> int:
-        """0 — можно продолжать, иначе через сколько секунд повторить."""
         now = time.monotonic()
         self._cleanup(now)
         q = self._prune(key, now)

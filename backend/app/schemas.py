@@ -1,13 +1,14 @@
-from typing import Optional
+from typing import Annotated, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+
+Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=128)]
+Phone = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64)]
 
 
-# ---------- Auth ----------
 class LoginRequest(BaseModel):
     username: str = Field(min_length=1, max_length=256)
-    # Пустой пароль в LDAP означает анонимный (unauthenticated) bind,
-    # который AD может принять — поэтому запрещаем его явно.
+    # Пустой пароль в LDAP — анонимный bind, который AD может принять
     password: str = Field(min_length=1, max_length=256)
 
 
@@ -18,7 +19,6 @@ class TokenResponse(BaseModel):
     is_admin: bool
 
 
-# ---------- Employee ----------
 class EmployeeShort(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -37,7 +37,6 @@ class EmployeeShort(BaseModel):
     city: Optional[str] = None
 
 
-# ---------- Department ----------
 class DepartmentNode(BaseModel):
     id: int
     name: str
@@ -47,7 +46,6 @@ class DepartmentNode(BaseModel):
 
 
 DepartmentNode.model_rebuild()
-
 
 class DepartmentDetail(BaseModel):
     id: int
@@ -63,13 +61,11 @@ class EmployeeDepartmentInfo(BaseModel):
     name: Optional[str] = None
 
 
-# ---------- Search ----------
 class SearchResult(BaseModel):
     employees: list[EmployeeShort] = []
     departments: list[DepartmentNode] = []
 
 
-# ---------- Quick contacts ----------
 class QuickContactOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -80,18 +76,15 @@ class QuickContactOut(BaseModel):
 
 
 class QuickContactIn(BaseModel):
-    name: str = Field(min_length=1, max_length=128)
-    phone: str = Field(min_length=1, max_length=64)
-    sort_order: int = 0
+    name: Name
+    phone: Phone
 
 
 class QuickContactPatch(BaseModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=128)
-    phone: Optional[str] = Field(default=None, min_length=1, max_length=64)
-    sort_order: Optional[int] = None
+    name: Optional[Name] = None
+    phone: Optional[Phone] = None
 
 
-# ---------- Admin ----------
 class PhoneUpdate(BaseModel):
     phone: Optional[str] = Field(default=None, max_length=64)
     mobile: Optional[str] = Field(default=None, max_length=64)
@@ -101,10 +94,5 @@ class PhoneUpdate(BaseModel):
 
 
 class ImportResult(BaseModel):
-    departments: int
-    employees: int
-
-
-class StatusResult(BaseModel):
     departments: int
     employees: int

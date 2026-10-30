@@ -53,8 +53,7 @@ def get_current_user(
 
 
 def require_admin(user: dict = Depends(get_current_user)) -> dict:
-    # Права берутся из текущего ADMIN_USERS, а не из токена: снятие
-    # админа действует сразу после перезапуска, без ожидания истечения токена.
+    # Проверяем по текущему ADMIN_USERS, а не по токену: снятие прав действует сразу
     if str(user.get("sub", "")).lower() not in settings.admin_logins:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

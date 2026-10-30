@@ -12,7 +12,6 @@ function read() {
   }
 }
 
-// Общее состояние на всё приложение: обновления видны сразу на главной
 const recent = ref(read())
 
 function save() {

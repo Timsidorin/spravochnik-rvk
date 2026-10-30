@@ -36,8 +36,6 @@ def _make_server() -> Server:
 
 
 def open_connection(user: str, password: str) -> Connection:
-    """Bind к AD с обязательным шифрованием (LDAPS или StartTLS), если оно
-    не отключено явно через AD_ALLOW_INSECURE."""
     auto_bind = (
         AUTO_BIND_TLS_BEFORE_BIND
         if settings.ad_use_starttls and not settings.ad_uses_ldaps

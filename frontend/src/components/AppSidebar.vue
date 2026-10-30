@@ -81,7 +81,6 @@ const toast = useToast()
 const query = ref('')
 const importing = ref(false)
 
-// Синхронизация поля поиска с URL (перезагрузка страницы, навигация назад)
 watch(
   () => (route.name === 'search' ? String(route.query.q || '') : null),
   (q) => {
@@ -90,30 +89,21 @@ watch(
   { immediate: true }
 )
 
-const userInitials = computed(() => {
-  const n = auth.user?.username || '?'
-  return n.slice(0, 2).toUpperCase()
-})
+const userInitials = computed(() => (auth.user?.username || '?').slice(0, 2).toUpperCase())
 
 let debounceTimer = null
 function onSearchInput() {
   clearTimeout(debounceTimer)
   const q = query.value.trim()
   if (!q) {
-    if (router.currentRoute.value.name === 'search') {
-      router.push({ name: 'welcome' })
-    }
+    if (route.name === 'search') router.push({ name: 'welcome' })
     return
   }
-  debounceTimer = setTimeout(() => {
-    router.push({ name: 'search', query: { q } })
-  }, 250)
+  debounceTimer = setTimeout(() => router.push({ name: 'search', query: { q } }), 250)
 }
 
 async function runImport() {
-  if (!confirm('Запустить синхронизацию с AD? Текущие данные будут перезаписаны.')) {
-    return
-  }
+  if (!confirm('Запустить синхронизацию с AD? Номера, внесённые вручную, сохранятся.')) return
   importing.value = true
   try {
     const res = await apiPost('/api/admin/import')
