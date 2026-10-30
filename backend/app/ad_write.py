@@ -10,7 +10,7 @@ log = logging.getLogger(__name__)
 
 
 def set_telephone(dn: str, value: str | None) -> None:
-    """Пишет telephoneNumber в AD. None — удалить атрибут. Синхронно, из thread pool."""
+    """Пишет telephoneNumber в AD"""
     conn = open_connection(settings.ad_user, settings.ad_password, write=True)
     try:
         changes = {
