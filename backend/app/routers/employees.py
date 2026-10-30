@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
 from ..models import Employee, Department
 from ..schemas import EmployeeShort, EmployeeDepartmentInfo
-from ..auth import get_current_user
 
 router = APIRouter(prefix="/api/employees", tags=["employees"])
 
@@ -14,7 +13,6 @@ router = APIRouter(prefix="/api/employees", tags=["employees"])
 async def get_employee(
     login: str,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
 ):
     emp = (
         await db.execute(select(Employee).where(Employee.login == login))
@@ -28,7 +26,6 @@ async def get_employee(
 async def get_employee_department(
     login: str,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
 ):
     emp = (
         await db.execute(select(Employee).where(Employee.login == login))

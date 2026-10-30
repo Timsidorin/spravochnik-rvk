@@ -60,7 +60,7 @@
       </div>
 
       <!-- Contact section -->
-      <div v-if="emp.email || phoneRows.length" class="detail-section">
+      <div class="detail-section">
         <div class="section-heading">Контакты</div>
 
         <div v-if="emp.email" class="detail-row">
@@ -84,29 +84,59 @@
           </button>
         </div>
 
-        <div v-for="p in phoneRows" :key="p.label" class="detail-row">
-          <div class="detail-icon">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07
-                       19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2
-                       2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09
-                       9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339
-                       1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
-            </svg>
+        <template v-if="auth.isAdmin">
+          <div v-for="f in editFields" :key="f.key" class="detail-row">
+            <div class="detail-icon">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07
+                         19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2
+                         2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09
+                         9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339
+                         1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+              </svg>
+            </div>
+            <div class="detail-label">{{ f.label }}</div>
+            <div class="detail-value">
+              <input
+                v-model="editForm[f.key]"
+                class="phone-input"
+                :placeholder="'—'"
+                :disabled="savingField === f.key"
+                @blur="saveField(f.key)"
+                @keydown.enter.prevent="$event.target.blur()"
+              />
+            </div>
+            <span class="save-indicator" :class="{ visible: savedField === f.key }">✓</span>
           </div>
-          <div class="detail-label">{{ p.label }}</div>
-          <div class="detail-value">
-            <a :href="`tel:${p.tel}`" class="detail-link">{{ p.value }}</a>
+        </template>
+
+        <template v-else>
+          <div v-for="p in phoneRows" :key="p.label" class="detail-row">
+            <div class="detail-icon">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07
+                         19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2
+                         2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09
+                         9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339
+                         1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+              </svg>
+            </div>
+            <div class="detail-label">{{ p.label }}</div>
+            <div class="detail-value">
+              <a v-if="p.value" :href="`tel:${p.tel}`" class="detail-link detail-phone">{{ p.value }}</a>
+              <span v-else class="detail-empty-value">не указан</span>
+            </div>
+            <button v-if="p.value" class="copy-btn" title="Скопировать" @click="copyToClipboard(p.tel)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+            </button>
           </div>
-          <button class="copy-btn" title="Скопировать" @click="copyToClipboard(p.tel)">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="9" y="9" width="13" height="13" rx="2"/>
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-            </svg>
-          </button>
-        </div>
+        </template>
       </div>
 
       <!-- Workplace section -->
@@ -151,19 +181,17 @@
         </div>
       </div>
 
-      <!-- No data fallback -->
-      <div v-if="!emp.email && !phoneRows.length && !emp.office && !emp.city" class="detail-empty">
-        <p>Контактные данные не указаны</p>
-      </div>
+
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { apiGet } from '../api'
+import { apiGet, apiPut } from '../api'
 import { useToast } from '../composables/useToast'
+import { useAuthStore } from '../stores/auth'
 
 const props = defineProps({
   login: { type: String, required: true },
@@ -171,11 +199,52 @@ const props = defineProps({
 
 const router = useRouter()
 const toast = useToast()
+const auth = useAuthStore()
 
 const emp = ref(null)
 const deptInfo = ref(null)
 const loading = ref(false)
 const error = ref('')
+
+/* ---- Admin inline phone editing ---- */
+const editFields = [
+  { key: 'phone', label: 'Рабочий' },
+  { key: 'mobile', label: 'Мобильный' },
+  { key: 'ip_phone', label: 'IP-телефон' },
+  { key: 'sip_line', label: 'SIP / Teams' },
+  { key: 'other_phone', label: 'Другой' },
+]
+const editForm = reactive({})
+const savingField = ref('')
+const savedField = ref('')
+
+function fillEditForm() {
+  for (const f of editFields) editForm[f.key] = emp.value?.[f.key] || ''
+}
+
+let savedTimer = null
+async function saveField(key) {
+  const value = (editForm[key] || '').trim()
+  const original = emp.value?.[key] || ''
+  if (value === original || savingField.value) return
+  savingField.value = key
+  try {
+    const updated = await apiPut(
+      `/api/admin/employees/${encodeURIComponent(props.login)}/phones`,
+      { [key]: value }
+    )
+    emp.value = updated
+    fillEditForm()
+    savedField.value = key
+    clearTimeout(savedTimer)
+    savedTimer = setTimeout(() => (savedField.value = ''), 1500)
+  } catch (e) {
+    toast.error(e.message)
+    editForm[key] = original
+  } finally {
+    savingField.value = ''
+  }
+}
 
 /* ---- Avatar ---- */
 const PALETTE = [
@@ -211,13 +280,13 @@ const phoneRows = computed(() => {
   if (!emp.value) return []
   const rows = []
   const add = (label, value) => {
-    if (!value) return
-    rows.push({ label, value, tel: value.replace(/[^\d+]/g, '') })
+    rows.push({ label, value: value || '', tel: (value || '').replace(/[^\d+]/g, '') })
   }
   add('Рабочий', emp.value.phone)
   add('Мобильный', emp.value.mobile)
   add('IP-телефон', emp.value.ip_phone)
   add('SIP / Teams', formatPhone(emp.value.sip_line))
+  add('Другой', emp.value.other_phone)
   return rows
 })
 
@@ -244,6 +313,7 @@ async function load() {
     ])
     emp.value = e
     deptInfo.value = d
+    fillEditForm()
   } catch (e) {
     error.value = e.message
     toast.error(e.message)
@@ -363,6 +433,70 @@ function goToDept() {
 }
 
 /* ============================================
+   ADMIN EDIT
+   ============================================ */
+.phone-input {
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 18px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: #1d4ed8;
+  caret-color: #1d4ed8;
+  appearance: none;
+  -webkit-appearance: none;
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  outline: none;
+}
+
+.phone-input:hover,
+.phone-input:focus,
+.phone-input:disabled {
+  background: none;
+  border: none;
+  box-shadow: none;
+  outline: none;
+}
+
+.phone-input:disabled {
+  opacity: 0.5;
+}
+
+.phone-input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 100px var(--bg-surface, #ffffff) inset;
+  -webkit-text-fill-color: #1d4ed8;
+}
+
+.phone-input::placeholder {
+  color: var(--text-tertiary, #a8a29e);
+  font-size: 13px;
+  font-weight: 400;
+  font-style: italic;
+  letter-spacing: 0;
+}
+
+.save-indicator {
+  width: 28px;
+  font-size: 13px;
+  color: var(--text-tertiary, #a8a29e);
+  text-align: center;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.save-indicator.visible {
+  opacity: 1;
+  color: #0ca678;
+}
+
+/* ============================================
    SECTIONS
    ============================================ */
 .detail-section {
@@ -434,6 +568,28 @@ function goToDept() {
 .detail-link:hover {
   border-bottom-color: var(--text-primary, #1c1917);
   text-decoration: none;
+}
+
+.detail-phone {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  color: #1d4ed8;
+  border-bottom: none;
+}
+
+.detail-phone:hover {
+  color: #1e3a8a;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.detail-empty-value {
+  color: var(--border-strong, #d6d3d1);
+  font-style: italic;
+  font-size: 13px;
 }
 
 .dept-link {

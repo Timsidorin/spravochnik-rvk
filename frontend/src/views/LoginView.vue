@@ -3,7 +3,7 @@
     <form class="login-card" @submit.prevent="onSubmit">
       
       <h1>РВК Справочник</h1>
-      <p class="subtitle">Телефонный справочник организации</p>
+      <p class="subtitle">Вход для администратора</p>
 
       <label>
         <span>Логин</span>

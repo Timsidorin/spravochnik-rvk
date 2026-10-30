@@ -41,6 +41,13 @@ export async function api(path, opts = {}) {
 
 export const apiGet = (path) => api(path)
 
+export const apiPut = (path, body, opts = {}) =>
+  api(path, {
+    ...opts,
+    method: 'PUT',
+    body: body ? JSON.stringify(body) : undefined,
+  })
+
 export const apiPost = (path, body, opts = {}) =>
   api(path, {
     ...opts,

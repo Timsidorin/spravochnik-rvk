@@ -6,7 +6,7 @@ const routes = [
     path: '/login',
     name: 'login',
     component: () => import('./views/LoginView.vue'),
-    meta: { guest: true },
+    meta: { bare: true },
   },
   {
     path: '/',
@@ -44,10 +44,9 @@ const router = createRouter({
 router.beforeEach((to) => {
   const auth = useAuthStore()
 
-  if (!to.meta.guest && !auth.isAuthenticated) {
-    return { name: 'login', query: { redirect: to.fullPath } }
-  }
-  if (to.meta.guest && auth.isAuthenticated) {
+  // Справочник публичный — авторизация нужна только администратору.
+  // Уже вошедший админ со страницы логина возвращается на главную.
+  if (to.name === 'login' && auth.isAuthenticated) {
     return { name: 'welcome' }
   }
 })

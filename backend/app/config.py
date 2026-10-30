@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     # Явное разрешение работать по открытому ldap:// (пароли в открытом виде!)
     ad_allow_insecure: bool = False
 
+    # Плановая синхронизация из AD: два раза в день по местному времени сервера
+    ad_sync_enabled: bool = True
+    ad_sync_times: str = "08:00,20:00"
+
     jwt_secret: str = Field(min_length=32)
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 480

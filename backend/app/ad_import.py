@@ -1,10 +1,11 @@
 import asyncio
 import logging
+import re
 from collections import Counter
 
 from ldap3 import Connection, SUBTREE
 from ldap3.core.exceptions import LDAPException
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import settings
@@ -149,10 +150,11 @@ def _fetch_users(conn: Connection) -> list[dict]:
             "(!(userAccountControl:1.2.840.113556.1.4.803:=2)))"
         ),
         search_scope=SUBTREE,
+        # Телефоны из AD не читаем: они вносятся вручную администратором
+        # и не должны перезаписываться синхронизацией.
         attributes=[
             "sAMAccountName", "cn", "displayName", "mail", "title",
-            "manager", "distinguishedName", "telephoneNumber", "mobile",
-            "ipPhone", "otherTelephone", "msRTCSIP-Line",
+            "manager", "distinguishedName",
             "physicalDeliveryOfficeName", "l",
         ],
         paged_size=1000,
@@ -242,10 +244,46 @@ def _resolve_department_id(
     return None
 
 
+PHONE_FIELDS = ("phone", "mobile", "ip_phone", "other_phone", "sip_line")
+
+_AREA_CODE_RE = re.compile(r"^\s*[\d+\- ]*\(\d+\)\s*")
+
+
+def normalize_phone(value: str | None) -> str | None:
+    """'(812)1003', '8 (812) 1003' -> '1003': отрезает код города в скобках."""
+    if not value:
+        return None
+    value = _AREA_CODE_RE.sub("", value).strip()
+    return value or None
+
+
+async def _snapshot_phones(db: AsyncSession) -> dict[str, dict[str, str]]:
+    """Вручную внесённые телефоны по логину — переживают пересинхронизацию."""
+    rows = await db.execute(
+        select(
+            Employee.login, Employee.phone, Employee.mobile,
+            Employee.ip_phone, Employee.other_phone, Employee.sip_line,
+        )
+    )
+    result: dict[str, dict[str, str]] = {}
+    for login, *phones in rows.all():
+        values = {
+            f: v
+            for f, v in (
+                (f, normalize_phone(v)) for f, v in zip(PHONE_FIELDS, phones)
+            )
+            if v
+        }
+        if values:
+            result[login] = values
+    return result
+
+
 async def _build_employees(
     db: AsyncSession,
     users_raw: list[dict],
     dept_by_dn: dict[str, Department],
+    saved_phones: dict[str, dict[str, str]],
 ) -> tuple[dict[str, Employee], dict[str, Employee]]:
     emp_by_login: dict[str, Employee] = {}
     emp_by_dn: dict[str, Employee] = {}
@@ -264,14 +302,10 @@ async def _build_employees(
             title=_first(attrs.get("title")),
             department_id=_resolve_department_id(dn, dept_by_dn),
             manager_dn=_first(attrs.get("manager")),
-            phone=_first(attrs.get("telephoneNumber")),
-            mobile=_first(attrs.get("mobile")),
-            ip_phone=_first(attrs.get("ipPhone")),
-            other_phone=_first(attrs.get("otherTelephone")),
-            sip_line=_first(attrs.get("msRTCSIP-Line")),
             office=_first(attrs.get("physicalDeliveryOfficeName")),
             city=_first(attrs.get("l")),
             dn=dn or None,
+            **saved_phones.get(login, {}),
         )
         db.add(emp)
         emp_by_login[login] = emp
@@ -326,11 +360,15 @@ async def import_from_ad(db: AsyncSession) -> dict:
     вызывающий код делает rollback и старые данные сохраняются."""
     users_raw, ou_map = await asyncio.to_thread(_fetch_from_ad_sync)
 
+    saved_phones = await _snapshot_phones(db)
+
     await db.execute(delete(Employee))
     await db.execute(delete(Department))
 
     dept_by_dn = await _build_departments(db, ou_map)
-    emp_by_login, emp_by_dn = await _build_employees(db, users_raw, dept_by_dn)
+    emp_by_login, emp_by_dn = await _build_employees(
+        db, users_raw, dept_by_dn, saved_phones
+    )
     _resolve_managers(emp_by_login, emp_by_dn)
     _assign_department_heads(dept_by_dn, emp_by_login)
     await db.commit()

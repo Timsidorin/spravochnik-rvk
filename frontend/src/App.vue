@@ -13,5 +13,5 @@ import AppLayout from './components/AppLayout.vue'
 import Toast from './components/Toast.vue'
 
 const route = useRoute()
-const isGuestRoute = computed(() => route.meta.guest === true)
+const isGuestRoute = computed(() => route.meta.bare === true)
 </script>

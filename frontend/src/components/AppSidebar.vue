@@ -32,7 +32,16 @@
     <DepartmentTree />
 
     <div class="sidebar-footer">
-      <div class="user-block">
+      <button
+        v-if="!auth.isAuthenticated"
+        class="admin-login-btn"
+        title="Войти под администратором"
+        @click="router.push({ name: 'login', query: { redirect: route.fullPath } })"
+      >
+        Войти как администратор
+      </button>
+
+      <div v-if="auth.isAuthenticated" class="user-block">
         <div class="user-avatar">{{ userInitials }}</div>
         <div class="user-info">
           <div class="user-name">{{ auth.user?.username || '—' }}</div>
@@ -51,7 +60,7 @@
         ⟳
       </button>
 
-      <button class="logout-btn" title="Выйти" @click="onLogout">⏻</button>
+      <button v-if="auth.isAuthenticated" class="logout-btn" title="Выйти" @click="onLogout">⏻</button>
     </div>
   </aside>
 </template>

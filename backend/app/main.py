@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .database import Base, engine
 from .routers import auth, departments, employees, admin
+from .scheduler import start_scheduler
 
 logging.basicConfig(
     level=logging.INFO,
@@ -18,8 +19,13 @@ logging.basicConfig(
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    yield
-    await engine.dispose()
+    task = start_scheduler()
+    try:
+        yield
+    finally:
+        if task:
+            task.cancel()
+        await engine.dispose()
 
 
 app = FastAPI(

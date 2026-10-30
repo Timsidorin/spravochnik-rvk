@@ -31,6 +31,7 @@ class EmployeeShort(BaseModel):
     phone: Optional[str] = None
     mobile: Optional[str] = None
     ip_phone: Optional[str] = None
+    other_phone: Optional[str] = None
     sip_line: Optional[str] = None
     office: Optional[str] = None
     city: Optional[str] = None
@@ -69,6 +70,14 @@ class SearchResult(BaseModel):
 
 
 # ---------- Admin ----------
+class PhoneUpdate(BaseModel):
+    phone: Optional[str] = Field(default=None, max_length=64)
+    mobile: Optional[str] = Field(default=None, max_length=64)
+    ip_phone: Optional[str] = Field(default=None, max_length=64)
+    other_phone: Optional[str] = Field(default=None, max_length=64)
+    sip_line: Optional[str] = Field(default=None, max_length=128)
+
+
 class ImportResult(BaseModel):
     departments: int
     employees: int

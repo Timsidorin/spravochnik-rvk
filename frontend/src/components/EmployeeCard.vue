@@ -21,7 +21,19 @@
           Должность не указана
         </div>
 
-        <div v-if="phones.length" class="emp-phones">
+        <div class="emp-phones">
+          <span v-if="auth.isAdmin" class="emp-phone emp-phone-edit" @click.stop>
+            <input
+              v-model="phoneDraft"
+              class="emp-phone-input"
+              :placeholder="emp.phone ? '' : 'номер...'"
+              :disabled="saving"
+              @click.stop
+              @keydown.enter.prevent="$event.target.blur()"
+              @keydown.stop
+              @blur="savePhone"
+            />
+          </span>
           <a
             v-for="p in phones"
             :key="p.label"
@@ -29,17 +41,9 @@
             :href="`tel:${p.tel}`"
             @click.stop
           >
-            <svg class="phone-icon" width="11" height="11" viewBox="0 0 24 24"
-                 fill="none" stroke="currentColor" stroke-width="2"
-                 stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07
-                       19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2
-                       2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09
-                       9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339
-                       1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
-            </svg>
             {{ p.label }}
           </a>
+          <span v-if="!phones.length && !auth.isAdmin" class="emp-phone emp-phone-empty">нет номера</span>
         </div>
       </div>
     </div>
@@ -47,8 +51,11 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
+import { apiPut } from '../api'
+import { useToast } from '../composables/useToast'
 
 const props = defineProps({
   emp: { type: Object, required: true },
@@ -56,6 +63,32 @@ const props = defineProps({
 })
 
 const router = useRouter()
+const auth = useAuthStore()
+const toast = useToast()
+
+const phoneDraft = ref(props.emp.phone || '')
+const saving = ref(false)
+watch(() => props.emp.phone, (v) => (phoneDraft.value = v || ''))
+
+async function savePhone() {
+  const value = phoneDraft.value.trim()
+  const original = props.emp.phone || ''
+  if (value === original || saving.value) return
+  saving.value = true
+  try {
+    const updated = await apiPut(
+      `/api/admin/employees/${encodeURIComponent(props.emp.login)}/phones`,
+      { phone: value }
+    )
+    Object.assign(props.emp, updated)
+    phoneDraft.value = updated.phone || ''
+  } catch (e) {
+    toast.error(e.message)
+    phoneDraft.value = original
+  } finally {
+    saving.value = false
+  }
+}
 
 const PALETTE = [
   { bg: '#4c6ef5', fg: '#ffffff' },
@@ -97,9 +130,11 @@ function formatPhone(raw) {
 const phones = computed(() => {
   const e = props.emp
   const list = []
-  if (e.phone) list.push({ label: e.phone, tel: e.phone.replace(/[^\d+]/g, '') })
+  // Для админа рабочий номер показывается инлайн-инпутом, чип не дублируем
+  if (e.phone && !auth.isAdmin) list.push({ label: e.phone, tel: e.phone.replace(/[^\d+]/g, '') })
   if (e.mobile) list.push({ label: e.mobile, tel: e.mobile.replace(/[^\d+]/g, '') })
   if (e.ip_phone) list.push({ label: e.ip_phone, tel: e.ip_phone.replace(/[^\d+]/g, '') })
+  if (e.other_phone) list.push({ label: e.other_phone, tel: e.other_phone.replace(/[^\d+]/g, '') })
   if (e.sip_line) {
     const v = formatPhone(e.sip_line)
     list.push({ label: v, tel: v.replace(/[^\d+]/g, '') })
@@ -260,34 +295,83 @@ function onClick() {
 .emp-phone {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  font-size: 12px;
+  font-size: 18px;
+  line-height: 1.2;
   font-variant-numeric: tabular-nums;
-  color: var(--text-secondary, #57534e);
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  color: #1d4ed8;
   text-decoration: none;
-  padding: 3px 9px 3px 8px;
-  border-radius: 6px;
-  background: var(--bg-subtle, #f5f5f4);
-  border: 1px solid transparent;
-  transition: all 120ms ease;
-  font-weight: 500;
+  padding: 0;
+  font-weight: 800;
+  letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
-.emp-phone:hover {
-  background: var(--bg-surface, #ffffff);
-  border-color: var(--border-strong, #d6d3d1);
-  color: var(--text-primary, #1c1917);
+.emp-phone-empty {
+  color: var(--text-tertiary, #a8a29e);
+  font-family: inherit;
+  font-weight: 400;
+  font-size: 12px;
+  font-style: italic;
+  cursor: inherit;
+}
+
+.emp-phone-edit {
+  cursor: text;
+}
+
+.emp-phone-edit:hover {
   text-decoration: none;
 }
 
-.phone-icon {
-  color: var(--text-tertiary, #a8a29e);
-  flex-shrink: 0;
-  transition: color 120ms ease;
+.emp-phone-input {
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  outline: none;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+  caret-color: #1d4ed8;
+  width: 140px;
+  padding: 0;
+  margin: 0;
+  cursor: text;
 }
 
-.emp-phone:hover .phone-icon {
-  color: var(--text-primary, #1c1917);
+.emp-phone-input:hover,
+.emp-phone-input:focus,
+.emp-phone-input:disabled {
+  background: none;
+  border: none;
+  box-shadow: none;
+  outline: none;
+}
+
+.emp-phone-input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 100px var(--bg-surface, #ffffff) inset;
+  -webkit-text-fill-color: #1d4ed8;
+}
+
+.emp-phone-input::placeholder {
+  color: var(--text-tertiary, #a8a29e);
+  font-family: inherit;
+  font-size: 13px;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.emp-phone-input:disabled {
+  opacity: 0.5;
+}
+
+.emp-phone:hover {
+  color: #1e3a8a;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 </style>

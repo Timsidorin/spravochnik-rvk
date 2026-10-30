@@ -520,6 +520,24 @@ a:hover {
   color: var(--text-primary);
 }
 
+.admin-login-btn {
+  flex: 1;
+  padding: 7px 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xs);
+  transition: all var(--t-fast);
+}
+
+.admin-login-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
 .import-btn.loading {
   animation: spin 1s linear infinite;
   color: var(--text-primary);
@@ -745,33 +763,6 @@ a:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1.4;
-}
-
-.emp-phones {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.emp-phone {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--text-secondary) !important;
-  text-decoration: none;
-  padding: 2px 8px;
-  border-radius: var(--r-xs);
-  background: var(--bg-subtle);
-  transition: all var(--t-fast);
-  font-weight: 500;
-}
-
-.emp-phone:hover {
-  background: var(--bg-active);
-  color: var(--text-primary) !important;
-  text-decoration: none;
 }
 
 .emp-no-phone {

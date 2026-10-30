@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..database import get_db
 from ..models import Department, Employee
 from ..schemas import DepartmentNode, DepartmentDetail, EmployeeShort, SearchResult
-from ..auth import get_current_user
 
 router = APIRouter(prefix="/api/departments", tags=["departments"])
 
@@ -13,7 +12,6 @@ router = APIRouter(prefix="/api/departments", tags=["departments"])
 @router.get("/tree", response_model=list[DepartmentNode])
 async def get_tree(
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
 ):
     depts = (await db.execute(select(Department))).scalars().all()
 
@@ -50,7 +48,6 @@ async def get_tree(
 async def search(
     q: str = Query(max_length=100),
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
 ):
     q = (q or "").strip()
     if not q:
@@ -117,7 +114,6 @@ async def search(
 async def get_department(
     dept_id: int,
     db: AsyncSession = Depends(get_db),
-    _user: dict = Depends(get_current_user),
 ):
     dept = (
         await db.execute(select(Department).where(Department.id == dept_id))
