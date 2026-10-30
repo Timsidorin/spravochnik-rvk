@@ -49,6 +49,7 @@
         </div>
         <div class="emp-detail-info">
           <h1 class="emp-detail-name">{{ emp.full_name }}</h1>
+          <a v-if="emp.email" class="emp-detail-email" :href="`mailto:${emp.email}`">{{ emp.email }}</a>
           <p class="emp-detail-title">{{ emp.title || 'Должность не указана' }}</p>
           <span class="emp-detail-login">@{{ emp.login }}</span>
         </div>
@@ -363,6 +364,21 @@ function goToDept() {
   color: var(--text-primary, #1c1917);
   line-height: 1.2;
   margin: 0 0 4px;
+}
+
+.emp-detail-email {
+  display: inline-block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-tertiary, #a8a29e);
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.emp-detail-email:hover {
+  color: var(--text-secondary, #57534e);
+  text-decoration: underline;
 }
 
 .emp-detail-title {

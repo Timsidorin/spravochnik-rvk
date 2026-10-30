@@ -289,7 +289,7 @@ wheels = [
 [[package]]
 name = "phonebook-backend"
 version = "0.1.0"
-source = { editable = "." }
+source = { virtual = "." }
 dependencies = [
     { name = "aiosqlite" },
     { name = "fastapi" },

@@ -13,6 +13,9 @@
           <span class="emp-name">{{ emp.full_name }}</span>
           <span v-if="head" class="badge-head">Руководитель</span>
         </div>
+        <a v-if="emp.email" class="emp-email" :href="`mailto:${emp.email}`" @click.stop>
+          {{ emp.email }}
+        </a>
 
         <div v-if="emp.title" class="emp-title">
           <span class="emp-title-text">{{ emp.title }}</span>
@@ -175,7 +178,24 @@ function onClick() {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
+}
+
+.emp-email {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-tertiary, #a8a29e);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.emp-email:hover {
+  color: var(--text-secondary, #57534e);
+  text-decoration: underline;
 }
 
 .emp-name {
