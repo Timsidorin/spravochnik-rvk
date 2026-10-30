@@ -65,3 +65,14 @@ class Employee(Base):
 
     def __repr__(self) -> str:
         return f"<Employee {self.login}>"
+
+
+class QuickContact(Base):
+    """Частые номера на главной (приёмная, охрана и т.п.) — ведёт админ, AD не трогает."""
+
+    __tablename__ = "quick_contacts"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    phone = Column(String, nullable=False)
+    sort_order = Column(Integer, nullable=False, default=0)

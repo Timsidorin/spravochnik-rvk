@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .database import Base, engine
-from .routers import auth, departments, employees, admin
+from .routers import auth, departments, employees, admin, quick_contacts
 from .scheduler import start_scheduler
 
 logging.basicConfig(
@@ -53,6 +53,7 @@ app.include_router(auth.router)
 app.include_router(departments.router)
 app.include_router(employees.router)
 app.include_router(admin.router)
+app.include_router(quick_contacts.router)
 
 
 @app.get("/health", tags=["system"])

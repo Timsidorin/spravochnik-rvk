@@ -192,6 +192,7 @@ import { useRouter } from 'vue-router'
 import { apiGet, apiPut } from '../api'
 import { useToast } from '../composables/useToast'
 import { useAuthStore } from '../stores/auth'
+import { useRecent } from '../composables/useRecent'
 
 const props = defineProps({
   login: { type: String, required: true },
@@ -200,6 +201,7 @@ const props = defineProps({
 const router = useRouter()
 const toast = useToast()
 const auth = useAuthStore()
+const { remember } = useRecent()
 
 const emp = ref(null)
 const deptInfo = ref(null)
@@ -235,6 +237,7 @@ async function saveField(key) {
     )
     emp.value = updated
     fillEditForm()
+    remember(updated)
     savedField.value = key
     clearTimeout(savedTimer)
     savedTimer = setTimeout(() => (savedField.value = ''), 1500)
@@ -314,6 +317,7 @@ async function load() {
     emp.value = e
     deptInfo.value = d
     fillEditForm()
+    remember(e)
   } catch (e) {
     error.value = e.message
     toast.error(e.message)

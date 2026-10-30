@@ -48,6 +48,8 @@ export const apiPut = (path, body, opts = {}) =>
     body: body ? JSON.stringify(body) : undefined,
   })
 
+export const apiDelete = (path, opts = {}) => api(path, { ...opts, method: 'DELETE' })
+
 export const apiPost = (path, body, opts = {}) =>
   api(path, {
     ...opts,

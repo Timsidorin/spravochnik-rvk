@@ -69,6 +69,28 @@ class SearchResult(BaseModel):
     departments: list[DepartmentNode] = []
 
 
+# ---------- Quick contacts ----------
+class QuickContactOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    phone: str
+    sort_order: int = 0
+
+
+class QuickContactIn(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    phone: str = Field(min_length=1, max_length=64)
+    sort_order: int = 0
+
+
+class QuickContactPatch(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=128)
+    phone: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    sort_order: Optional[int] = None
+
+
 # ---------- Admin ----------
 class PhoneUpdate(BaseModel):
     phone: Optional[str] = Field(default=None, max_length=64)
