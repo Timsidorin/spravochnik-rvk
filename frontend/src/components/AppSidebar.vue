@@ -1,5 +1,5 @@
 <template>
-  <aside class="sidebar">
+  <aside class="sidebar" :style="{ width: width + 'px', minWidth: width + 'px' }">
     <div class="brand">
       <div class="brand-icon">
         <img src="../assets/logo.jpg" width="28" height="28" alt=""
@@ -76,6 +76,13 @@
 
       <button v-if="auth.isAuthenticated" class="logout-btn" title="Выйти" @click="onLogout">⏻</button>
     </div>
+
+    <div
+      class="sidebar-resize"
+      title="Потяните, чтобы изменить ширину"
+      @mousedown.prevent="startResize"
+      @dblclick="resetWidth"
+    ></div>
   </aside>
 </template>
 
@@ -94,6 +101,36 @@ const toast = useToast()
 
 const query = ref('')
 const importing = ref(false)
+
+const WIDTH_KEY = 'phonebook.sidebar-width'
+const DEFAULT_WIDTH = 600
+const width = ref(
+  Math.min(600, Math.max(220, Number(localStorage.getItem(WIDTH_KEY)) || DEFAULT_WIDTH))
+)
+
+function startResize(e) {
+  const startX = e.clientX
+  const startWidth = width.value
+  const onMove = (ev) => {
+    width.value = Math.min(600, Math.max(220, startWidth + ev.clientX - startX))
+  }
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onUp)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+    localStorage.setItem(WIDTH_KEY, String(width.value))
+  }
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+}
+
+function resetWidth() {
+  width.value = DEFAULT_WIDTH
+  localStorage.removeItem(WIDTH_KEY)
+}
 
 watch(
   () => (route.name === 'search' ? String(route.query.q || '') : null),
