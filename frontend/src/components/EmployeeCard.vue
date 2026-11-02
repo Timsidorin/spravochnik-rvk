@@ -7,16 +7,14 @@
   >
     <div class="employee-card-inner">
       <div
-        class="emp-avatar"
-        :class="{ 'emp-avatar-editable': auth.isAdmin }"
+        class="emp-avatar emp-avatar-editable"
         :style="avatarStyle"
-        :title="auth.isAdmin ? 'Сменить фото' : ''"
-        @click.stop="auth.isAdmin && fileInput?.click()"
+        title="Сменить фото"
+        @click.stop="fileInput?.click()"
       >
         <img v-if="!photoFailed" :src="photoSrc" alt="" @error="photoFailed = true" />
         <span v-else>{{ avatarText }}</span>
         <input
-          v-if="auth.isAdmin"
           ref="fileInput"
           type="file"
           accept="image/*"

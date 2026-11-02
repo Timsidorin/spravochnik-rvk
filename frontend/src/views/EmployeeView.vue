@@ -48,7 +48,7 @@
           <img v-if="!photoFailed" :src="photoSrc" alt="" @error="photoFailed = true" />
           <span v-else>{{ avatarText }}</span>
         </div>
-        <div v-if="auth.isAdmin" class="photo-actions">
+        <div class="photo-actions">
           <button
             type="button"
             class="photo-action-btn"
@@ -268,7 +268,6 @@ const AVATAR_COLORS = [
 ]
 const avatarColor = computed(() => pickByName(emp.value?.full_name, AVATAR_COLORS))
 const avatarText = computed(() => initials(emp.value?.full_name))
-
 const fileInput = ref(null)
 const photoFailed = ref(false)
 const photoBusy = ref(false)
