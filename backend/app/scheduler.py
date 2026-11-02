@@ -10,6 +10,16 @@ log = logging.getLogger(__name__)
 
 
 def _parse_sync_times() -> list[time]:
+    interval = getattr(settings, "ad_sync_interval_hours", 0) or 0
+    if interval > 0:
+        if 24 % interval != 0:
+            log.warning(
+                "AD_SYNC_INTERVAL_HOURS=%s не делит сутки нацело — "
+                "интервал между последним и первым запуском будет другим",
+                interval,
+            )
+        return [time(h % 24, 0) for h in range(0, 24, interval)]
+
     times: set[time] = set()
     for part in filter(None, (p.strip() for p in settings.ad_sync_times.split(","))):
         try:

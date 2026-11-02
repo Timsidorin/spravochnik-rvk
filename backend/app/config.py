@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     ad_write_server: str = ""
     # Строка шифров OpenSSL. DEFAULT:@SECLEVEL=1 принимает слабые ключи сертификатов DC
     ad_tls_ciphers: str = ""
-
+    ad_sync_interval_hours: int = 0  
     ad_sync_enabled: bool = True
     ad_sync_times: str = "08:00,20:00"
 
