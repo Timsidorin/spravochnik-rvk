@@ -46,10 +46,12 @@
         </button>
         <ul class="tree-root" role="tree">
           <TreeNode
-            v-for="node in tree"
+            v-for="(node, i) in tree"
             :key="resetKey + '-' + node.id"
             :node="node"
             :level="0"
+            :siblings="tree"
+            :index="i"
           />
         </ul>
       </div>

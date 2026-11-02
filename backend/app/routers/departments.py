@@ -20,7 +20,11 @@ async def _employee_counts(db: AsyncSession) -> dict[int, int]:
 
 @router.get("/tree", response_model=list[DepartmentNode])
 async def get_tree(db: AsyncSession = Depends(get_db)):
-    depts = (await db.execute(select(Department))).scalars().all()
+    depts = (
+        await db.execute(
+            select(Department).order_by(Department.sort_order, func.lower(Department.name))
+        )
+    ).scalars().all()
     counts = await _employee_counts(db)
 
     nodes: dict[int, dict] = {}
@@ -28,17 +32,16 @@ async def get_tree(db: AsyncSession = Depends(get_db)):
         nodes[d.id] = {
             "id": d.id,
             "name": d.name,
+            "parent_id": d.parent_id,
             "head_login": d.head_login,
             "employees_count": counts.get(d.id, 0),
-            "parent_id": d.parent_id,
             "children": [],
         }
 
     roots: list[dict] = []
     for node in nodes.values():
-        pid = node.pop("parent_id", None)
-        if pid and pid in nodes:
-            nodes[pid]["children"].append(node)
+        if node["parent_id"] and node["parent_id"] in nodes:
+            nodes[node["parent_id"]]["children"].append(node)
         else:
             roots.append(node)
 

@@ -55,12 +55,18 @@ class EmployeeShort(BaseModel):
 class DepartmentNode(BaseModel):
     id: int
     name: str
+    parent_id: Optional[int] = None
     head_login: Optional[str] = None
     employees_count: int = 0
     children: list["DepartmentNode"] = []
 
 
 DepartmentNode.model_rebuild()
+
+
+class DepartmentOrder(BaseModel):
+    parent_id: Optional[int] = None
+    ids: list[int] = []
 
 class DepartmentDetail(BaseModel):
     id: int

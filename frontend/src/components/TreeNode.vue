@@ -2,11 +2,21 @@
   <li class="tree-node" role="treeitem" :aria-expanded="hasChildren ? isOpen : undefined">
     <div
       class="tree-row"
-      :class="{ active: isActive }"
+      :class="{
+        active: isActive,
+        'drop-above': dropPos === 'above',
+        'drop-below': dropPos === 'below',
+      }"
+      :draggable="auth.isAdmin"
       @click="toggle"
       @keydown.enter.prevent="toggle"
       @keydown.right.prevent="hasChildren && !isOpen && (isOpen = true)"
       @keydown.left.prevent="isOpen = false"
+      @dragstart="onDragStart"
+      @dragover="onDragOver"
+      @dragleave="dropPos = null"
+      @drop.prevent="onDrop"
+      @dragend="onDragEnd"
       tabindex="0"
     >
       <span v-if="hasChildren" class="tree-toggle" :class="{ open: isOpen }">
@@ -44,10 +54,12 @@
     <Transition name="tree-collapse">
       <ul v-if="hasChildren && isOpen" class="tree-children" role="group">
         <TreeNode
-          v-for="child in node.children"
+          v-for="(child, i) in node.children"
           :key="child.id"
           :node="child"
           :level="level + 1"
+          :siblings="node.children"
+          :index="i"
         />
       </ul>
     </Transition>
@@ -57,15 +69,71 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { apiPut } from '../api'
+import { useToast } from '../composables/useToast'
+import { treeDnd } from '../composables/useTreeDnd'
+import { useAuthStore } from '../stores/auth'
 
 const props = defineProps({
   node: { type: Object, required: true },
   level: { type: Number, default: 0 },
+  siblings: { type: Array, default: () => [] },
+  index: { type: Number, default: 0 },
 })
 
 const route = useRoute()
 const router = useRouter()
 const isOpen = ref(false)
+const auth = useAuthStore()
+const toast = useToast()
+const dropPos = ref(null)
+
+function onDragStart(e) {
+  treeDnd.dragging = { node: props.node, siblings: props.siblings }
+  e.dataTransfer.effectAllowed = 'move'
+  e.dataTransfer.setData('text/plain', String(props.node.id))
+  e.stopPropagation()
+}
+
+function onDragOver(e) {
+  const d = treeDnd.dragging
+  if (!d || d.siblings !== props.siblings || d.node === props.node) return
+  const rect = e.currentTarget.getBoundingClientRect()
+  dropPos.value = e.clientY < rect.top + rect.height / 2 ? 'above' : 'below'
+  e.dataTransfer.dropEffect = 'move'
+  e.preventDefault()
+  e.stopPropagation()
+}
+
+async function onDrop(e) {
+  const d = treeDnd.dragging
+  const pos = dropPos.value
+  dropPos.value = null
+  if (!d || d.siblings !== props.siblings || d.node === props.node) return
+  e.stopPropagation()
+
+  const arr = props.siblings
+  const from = arr.indexOf(d.node)
+  let to = pos === 'above' ? props.index : props.index + 1
+  arr.splice(from, 1)
+  if (from < to) to--
+  arr.splice(to, 0, d.node)
+
+  try {
+    await apiPut('/api/admin/departments/order', {
+      parent_id: props.node.parent_id ?? null,
+      ids: arr.map((n) => n.id),
+    })
+  } catch (err) {
+    toast.error(err.message)
+    window.dispatchEvent(new Event('tree:reload'))
+  }
+}
+
+function onDragEnd() {
+  treeDnd.dragging = null
+  dropPos.value = null
+}
 
 const hasChildren = computed(() => props.node.children?.length > 0)
 const isActive = computed(() => route.params.id === String(props.node.id))
@@ -217,6 +285,22 @@ function toggle() {
 .tree-row.active .tree-count {
   color: var(--text-primary, #1c1917);
   background: var(--accent-soft-strong, rgba(28, 25, 23, 0.1));
+}
+
+.tree-row[draggable='true'] {
+  cursor: grab;
+}
+
+.tree-row[draggable='true']:active {
+  cursor: grabbing;
+}
+
+.tree-row.drop-above {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.tree-row.drop-below {
+  box-shadow: inset 0 -2px 0 var(--accent);
 }
 
 .tree-children {

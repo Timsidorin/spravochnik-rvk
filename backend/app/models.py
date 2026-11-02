@@ -18,6 +18,7 @@ class Department(Base):
         nullable=True,
     )
     head_login = Column(String, nullable=True)
+    sort_order = Column(Integer, nullable=False, default=0)
 
     parent = relationship("Department", remote_side=[id], backref="children")
     employees = relationship(

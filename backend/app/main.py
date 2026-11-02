@@ -19,14 +19,15 @@ log = logging.getLogger(__name__)
 
 def _add_missing_columns(sync_conn) -> None:
     # create_all не добавляет столбцы в уже существующие таблицы
-    columns = {c["name"] for c in inspect(sync_conn).get_columns("employees")}
-    for column, ddl in (
-        ("manual_phone_fields", "VARCHAR"),
-        ("photo", "BLOB"),
+    for table, column, ddl in (
+        ("employees", "manual_phone_fields", "VARCHAR"),
+        ("employees", "photo", "BLOB"),
+        ("departments", "sort_order", "INTEGER DEFAULT 0"),
     ):
+        columns = {c["name"] for c in inspect(sync_conn).get_columns(table)}
         if column not in columns:
-            sync_conn.execute(text(f"ALTER TABLE employees ADD COLUMN {column} {ddl}"))
-            log.info("БД: добавлен столбец employees.%s", column)
+            sync_conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
+            log.info("БД: добавлен столбец %s.%s", table, column)
 
 
 @asynccontextmanager

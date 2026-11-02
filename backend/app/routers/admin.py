@@ -10,9 +10,9 @@ from ..ad_write import set_photo, set_telephone
 from ..photos import prepare_photo
 from ..auth import require_admin
 from ..database import get_db
-from ..models import Employee
+from ..models import Department, Employee
 from ..phones import dump_manual_fields, manual_fields, normalize_phone
-from ..schemas import EmployeeShort, ImportResult, PhoneUpdate
+from ..schemas import DepartmentOrder, EmployeeShort, ImportResult, PhoneUpdate
 
 log = logging.getLogger(__name__)
 
@@ -36,6 +36,32 @@ async def trigger_import(
 
     log.info("Импорт из AD выполнен (%s): %s", user.get("sub"), result)
     return ImportResult(**result)
+
+
+@router.put("/departments/order")
+async def reorder_departments(
+    payload: DepartmentOrder,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_admin),
+):
+    depts = (
+        await db.execute(select(Department).where(Department.id.in_(payload.ids)))
+    ).scalars().all()
+    if len(depts) != len(set(payload.ids)):
+        raise HTTPException(status_code=404, detail="Отдел не найден")
+    if any(d.parent_id != payload.parent_id for d in depts):
+        raise HTTPException(
+            status_code=409,
+            detail="Отделы должны быть на одном уровне иерархии",
+        )
+
+    order = {dept_id: i for i, dept_id in enumerate(payload.ids)}
+    for d in depts:
+        d.sort_order = order[d.id]
+
+    await db.commit()
+    log.info("Порядок отделов обновлён (%s): parent=%s ids=%s", user.get("sub"), payload.parent_id, payload.ids)
+    return {"ok": True}
 
 
 @router.put("/employees/{login}/phones", response_model=EmployeeShort)

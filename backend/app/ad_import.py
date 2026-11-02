@@ -180,7 +180,9 @@ def _merge_user_ous_into_map(users_raw: list[dict], ou_map: dict[str, str]) -> N
 
 
 async def _build_departments(
-    db: AsyncSession, ou_map: dict[str, str]
+    db: AsyncSession,
+    ou_map: dict[str, str],
+    sort_orders: dict[str, int],
 ) -> dict[str, Department]:
     dept_by_dn: dict[str, Department] = {}
     base_key = _dn_key(_departments_base())
@@ -197,7 +199,12 @@ async def _build_departments(
             if _dn_key(candidate_dn) == base_key:
                 break
 
-        dept = Department(name=ou_map[dn], dn=dn, parent_id=parent.id if parent else None)
+        dept = Department(
+            name=ou_map[dn],
+            dn=dn,
+            parent_id=parent.id if parent else None,
+            sort_order=sort_orders.get(dn, 0),
+        )
         db.add(dept)
         await db.flush()
         dept_by_dn[dn] = dept
@@ -314,11 +321,14 @@ async def import_from_ad(db: AsyncSession) -> dict:
     """Полная пересинхронизация в одной транзакции; при ошибке вызывающий делает rollback."""
     users_raw, ou_map = await asyncio.to_thread(_fetch_from_ad_sync)
     manual_phones = await _snapshot_manual_phones(db)
+    sort_orders = dict(
+        (await db.execute(select(Department.dn, Department.sort_order))).all()
+    )
 
     await db.execute(delete(Employee))
     await db.execute(delete(Department))
 
-    dept_by_dn = await _build_departments(db, ou_map)
+    dept_by_dn = await _build_departments(db, ou_map, sort_orders)
     emp_by_login, emp_by_dn = await _build_employees(
         db, users_raw, dept_by_dn, manual_phones
     )
