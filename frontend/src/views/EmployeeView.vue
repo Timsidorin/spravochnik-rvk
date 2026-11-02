@@ -48,7 +48,7 @@
           <img v-if="!photoFailed" :src="photoSrc" alt="" @error="photoFailed = true" />
           <span v-else>{{ avatarText }}</span>
         </div>
-        <div class="photo-actions">
+        <div v-if="auth.isAdmin" class="photo-actions">
           <button
             type="button"
             class="photo-action-btn"

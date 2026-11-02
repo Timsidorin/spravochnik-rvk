@@ -87,6 +87,7 @@ async def upload_photo(
     login: str,
     request: Request,
     db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_admin),
 ):
     emp = (
         await db.execute(select(Employee).where(Employee.login == login))
@@ -105,7 +106,7 @@ async def upload_photo(
     try:
         await asyncio.to_thread(set_photo, emp.dn, photo)
     except Exception:
-        log.exception("Не удалось записать фото %s в AD", login)
+        log.exception("Не удалось записать фото %s в AD (%s)", login, user.get("sub"))
         raise HTTPException(
             status_code=502,
             detail="Не удалось записать фото в AD, проверьте права учётной записи",
@@ -113,7 +114,7 @@ async def upload_photo(
 
     emp.photo = photo
     await db.commit()
-    log.info("Фото %s обновлено", login)
+    log.info("Фото %s обновлено (%s)", login, user.get("sub"))
     return EmployeeShort.model_validate(emp)
 
 
@@ -121,6 +122,7 @@ async def upload_photo(
 async def delete_photo(
     login: str,
     db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_admin),
 ):
     emp = (
         await db.execute(select(Employee).where(Employee.login == login))
@@ -133,10 +135,10 @@ async def delete_photo(
     try:
         await asyncio.to_thread(set_photo, emp.dn, None)
     except Exception:
-        log.exception("Не удалось удалить фото %s из AD", login)
+        log.exception("Не удалось удалить фото %s из AD (%s)", login, user.get("sub"))
         raise HTTPException(status_code=502, detail="Не удалось удалить фото из AD")
 
     emp.photo = None
     await db.commit()
-    log.info("Фото %s удалено", login)
+    log.info("Фото %s удалено (%s)", login, user.get("sub"))
     return Response(status_code=204)
