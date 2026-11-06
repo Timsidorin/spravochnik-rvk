@@ -1,5 +1,15 @@
 <template>
   <div class="search-results">
+    <form v-if="!embedded" class="results-search" @submit.prevent="submitSearch">
+      <input
+        v-model="draft"
+        type="search"
+        placeholder="Фамилия, отдел или номер"
+        aria-label="Поиск сотрудников и отделов"
+        autocomplete="off"
+      />
+      <button type="submit">Найти</button>
+    </form>
     <div v-if="loading" class="empty-content">Поиск...</div>
 
     <div v-else-if="!hasResults" class="search-empty">
@@ -60,27 +70,42 @@ const toast = useToast()
 const result = ref({ employees: [], departments: [] })
 const loading = ref(false)
 
-const q = computed(() => String(route.query.q || '').trim())
+const props = defineProps({
+  embedded: Boolean,
+  searchQuery: { type: String, default: '' },
+})
+const q = computed(() => props.embedded ? props.searchQuery.trim() : String(route.query.q || '').trim())
+const draft = ref(q.value)
+watch(q, (value) => { draft.value = value })
+
+function submitSearch() {
+  router.replace({ name: 'search', query: { q: draft.value.trim() } })
+}
 
 const hasResults = computed(
   () => result.value.employees.length > 0 || result.value.departments.length > 0
 )
 
+let requestId = 0
 async function search() {
+  const id = ++requestId
   if (!q.value) {
+    loading.value = false
     result.value = { employees: [], departments: [] }
     return
   }
   loading.value = true
   try {
-    result.value = await apiGet(
+    const data = await apiGet(
       `/api/departments/search?q=${encodeURIComponent(q.value)}`
     )
+    if (id === requestId) result.value = data
   } catch (e) {
+    if (id !== requestId) return
     toast.error(e.message)
     result.value = { employees: [], departments: [] }
   } finally {
-    loading.value = false
+    if (id === requestId) loading.value = false
   }
 }
 
@@ -90,3 +115,29 @@ function openDept(id) {
   router.push({ name: 'department', params: { id } })
 }
 </script>
+
+<style scoped>
+.results-search {
+  display: flex;
+  gap: 10px;
+  margin: 0 auto 32px;
+  max-width: 720px;
+}
+.results-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 18px;
+  font: inherit;
+  font-size: 17px;
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.results-search button {
+  padding: 12px 18px;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border-radius: var(--r-md);
+}
+</style>

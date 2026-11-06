@@ -2,6 +2,7 @@
   <div class="home">
     <section class="hero">
       <h1 class="hero-title">Телефонный справочник</h1>
+      <label for="directory-search" class="search-caption">Поиск по справочнику</label>
       <form class="hero-search" @submit.prevent="goSearch">
         <svg viewBox="0 0 24 24" width="20" height="20" class="hero-search-icon">
           <path
@@ -10,17 +11,36 @@
           />
         </svg>
         <input
+          id="directory-search"
           ref="searchInput"
+          @input="onInput"
+          @keydown.esc.prevent="clearSearch"
           v-model="query"
           type="search"
           placeholder="Фамилия, отдел или номер"
           autocomplete="off"
-          @input="onInput"
+          aria-label="Поиск сотрудников и отделов"
         />
+        <button
+          v-if="query"
+          type="button"
+          class="search-clear"
+          aria-label="Очистить поиск"
+          title="Очистить поиск (Esc)"
+          @click="clearSearch"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round">
+            <path d="m6 6 12 12M18 6 6 18" />
+          </svg>
+        </button>
       </form>
+      <p class="search-caption-hint">Начните вводить — результаты появятся ниже автоматически</p>
     </section>
 
-    <section v-if="contacts.length || auth.isAdmin" class="block">
+    <SearchView v-if="query.trim()" :search-query="searchQuery" embedded />
+
+    <section v-if="!query.trim() && (contacts.length || auth.isAdmin)" class="block">
       <div class="block-head">
         <h2>Частые номера</h2>
       </div>
@@ -69,7 +89,7 @@
       </div>
     </section>
 
-    <section v-if="recent.length" class="block">
+    <section v-if="!query.trim() && recent.length" class="block">
       <div class="block-head">
         <h2>Недавно просмотренные</h2>
         <button class="block-action" @click="clearRecent">Очистить</button>
@@ -99,33 +119,38 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import SearchView from './SearchView.vue'
 import { apiGet, apiPost, apiPut, apiDelete } from '../api'
 import { useToast } from '../composables/useToast'
 import { useRecent } from '../composables/useRecent'
 import { useAuthStore } from '../stores/auth'
 import { toTel } from '../utils'
 
-const router = useRouter()
 const auth = useAuthStore()
 const toast = useToast()
 const { recent, clear: clearRecent } = useRecent()
 
 const query = ref('')
 const searchInput = ref(null)
-let debounceTimer = null
-
+const searchQuery = ref('')
+let searchTimer
 function goSearch() {
-  clearTimeout(debounceTimer)
-  const q = query.value.trim()
-  if (q) router.push({ name: 'search', query: { q } })
+  clearTimeout(searchTimer)
+  searchQuery.value = query.value.trim()
 }
-
+function clearSearch() {
+  clearTimeout(searchTimer)
+  query.value = ''
+  searchQuery.value = ''
+  searchInput.value?.focus()
+}
 function onInput() {
-  clearTimeout(debounceTimer)
-  if (query.value.trim()) debounceTimer = setTimeout(goSearch, 400)
+  clearTimeout(searchTimer)
+  if (!query.value.trim()) searchQuery.value = ''
+  else searchTimer = setTimeout(goSearch, 300)
 }
+onUnmounted(() => clearTimeout(searchTimer))
 
 const contacts = ref([])
 const drafts = reactive({})
@@ -233,6 +258,20 @@ onMounted(() => {
   margin: 0 0 20px;
 }
 
+.search-caption {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.search-caption-hint {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
 .hero-search {
   position: relative;
   max-width: 620px;
@@ -250,7 +289,7 @@ onMounted(() => {
 
 .hero-search input {
   width: 100%;
-  padding: 16px 20px 16px 50px;
+  padding: 16px 56px 16px 50px;
   font-size: 17px;
   font-family: inherit;
   color: var(--text-primary, #1c1917);
@@ -269,6 +308,35 @@ onMounted(() => {
 .hero-search input:focus {
   border-color: #93c5fd;
   box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+}
+
+.hero-search input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+
+.hero-search:focus-within .hero-search-icon {
+  color: var(--phone, #1d4ed8);
+}
+
+.search-clear {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: var(--bg-subtle);
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.search-clear:hover {
+  color: var(--text-primary);
+  background: var(--bg-active);
 }
 
 .hero-search input::placeholder {
@@ -506,7 +574,7 @@ a.quick-phone:hover {
 @media (max-width: 600px) {
   .hero-search input {
     font-size: 15px;
-    padding: 14px 16px 14px 44px;
+    padding: 14px 56px 14px 44px;
   }
 }
 </style>
